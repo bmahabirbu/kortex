@@ -16,9 +16,7 @@
  * SPDX-License-Identifier: Apache-2.0
  ***********************************************************************/
 
-import type { IconDefinition } from '@fortawesome/free-solid-svg-icons';
-import type { Port } from '@podman-desktop/api';
-import type { Component } from 'svelte';
+import type { Port } from '@kortex-app/api';
 
 // type of groups
 export enum ContainerGroupInfoTypeUI {
@@ -37,9 +35,9 @@ export interface ContainerGroupPartInfoUI {
   // Information regarding the entire group (ex. name of the pod)
   // as well as the "engine" running the group (ex. podman or docker)
   id: string;
-  engineId: string;
-  engineName: string;
-  engineType: 'podman' | 'docker';
+  engineId?: string;
+  engineName?: string;
+  engineType?: 'podman' | 'docker';
   shortId?: string;
   status?: string;
   humanCreationDate?: string;
@@ -70,7 +68,7 @@ export interface ContainerInfoUI {
   actionInProgress?: boolean;
   actionError?: string;
   labels: { [label: string]: string };
-  icon?: string | IconDefinition | Component;
+  icon?: unknown;
   imageBase64RepoTag: string;
   imageHref?: string;
 }

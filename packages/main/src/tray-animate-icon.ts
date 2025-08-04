@@ -21,8 +21,6 @@ import * as path from 'node:path';
 import type { Tray } from 'electron';
 import { app, nativeTheme } from 'electron';
 
-import product from '/@product.json' with { type: 'json' };
-
 import { isLinux, isMac } from './util.js';
 
 export type TrayIconStatus = 'initialized' | 'updating' | 'error' | 'ready';
@@ -121,19 +119,19 @@ export class AnimatedTray {
     switch (this.status) {
       case 'initialized':
         this.tray.setImage(this.getIconPath('empty'));
-        this.tray.setToolTip(`${product.name} is initialized`);
+        this.tray.setToolTip('Kortex is initialized');
         break;
       case 'error':
         this.tray.setImage(this.getIconPath('error'));
-        this.tray.setToolTip(`${product.name} has an error`);
+        this.tray.setToolTip('Kortex has an error');
         break;
       case 'ready':
         this.tray.setImage(this.getIconPath('default'));
-        this.tray.setToolTip(`${product.name} is ready`);
+        this.tray.setToolTip('Kortex is ready');
         break;
       case 'updating':
         this.animatedInterval = setInterval(this.animateTrayIcon.bind(this), 1000);
-        this.tray.setToolTip(`${product.name}: resources are being updated`);
+        this.tray.setToolTip('Kortex: resources are being updated');
         break;
     }
   }

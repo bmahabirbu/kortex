@@ -20,64 +20,46 @@
 import { EventEmitter } from 'node:events';
 import { tmpdir } from 'node:os';
 
-import type { PullEvent } from '@podman-desktop/api';
-import type { IpcMainInvokeEvent, WebContents } from 'electron';
+import type { PullEvent } from '@kortex-app/api';
+import type { WebContents } from 'electron';
 import { app, BrowserWindow, clipboard, ipcMain, shell } from 'electron';
 import { Container as InversifyContainer } from 'inversify';
-import type { Mock } from 'vitest';
-import { afterEach, assert, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
+import { afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
 
 import { ExtensionLoader } from '/@/plugin/extension/extension-loader.js';
 import { Updater } from '/@/plugin/updater.js';
-import { ApiSenderType } from '/@api/api-sender/api-sender-type.js';
-import type { PlayKubeInfo } from '/@api/libpod/libpod.js';
 import type { NotificationCardOptions } from '/@api/notification.js';
-import type { ProviderContainerConnectionInfo, ProviderInfo } from '/@api/provider-info.js';
+import type { ProviderInfo } from '/@api/provider-info.js';
 
 import { securityRestrictionCurrentHandler } from '../security-restrictions-handler.js';
 import type { TrayMenu } from '../tray-menu.js';
+import { ApiSenderType } from './api.js';
 import { CancellationTokenRegistry } from './cancellation-token-registry.js';
 import { ConfigurationRegistry } from './configuration-registry.js';
-import { ContainerProviderRegistry, LatestImageError } from './container-registry.js';
-import { DefaultConfiguration } from './default-configuration.js';
+import { ContainerProviderRegistry } from './container-registry.js';
 import { Directories } from './directories.js';
 import { Emitter } from './events/emitter.js';
 import type { LoggerWithEnd } from './index.js';
 import { PluginSystem } from './index.js';
-import { LockedConfiguration } from './locked-configuration.js';
 import type { MessageBox } from './message-box.js';
 import { NavigationManager } from './navigation/navigation-manager.js';
 import { ProviderRegistry } from './provider-registry.js';
 import { TaskImpl } from './tasks/task-impl.js';
 import { TaskManager } from './tasks/task-manager.js';
-import type { Task, TaskAction } from './tasks/tasks.js';
+import type { Task } from './tasks/tasks.js';
 import { Disposable } from './types/disposable.js';
 import { HttpServer } from './webview/webview-registry.js';
-
-vi.mock(import('./extension/extension-api-version.js'));
 
 let pluginSystem: TestPluginSystem;
 
 class TestPluginSystem extends PluginSystem {
-  override async initConfigurationRegistry(
+  override initConfigurationRegistry(
     container: InversifyContainer,
     notifications: NotificationCardOptions[],
     configurationRegistryEmitter: Emitter<ConfigurationRegistry>,
-  ): Promise<ConfigurationRegistry> {
+  ): ConfigurationRegistry {
     if (!container.isBound(ConfigurationRegistry)) {
       container.bind<ConfigurationRegistry>(ConfigurationRegistry).toSelf().inSingletonScope();
-    }
-    if (!container.isBound(DefaultConfiguration)) {
-      const defaultConfigurationMock = {
-        getContent: vi.fn().mockResolvedValue({}),
-      } as unknown as DefaultConfiguration;
-      container.bind<DefaultConfiguration>(DefaultConfiguration).toConstantValue(defaultConfigurationMock);
-    }
-    if (!container.isBound(LockedConfiguration)) {
-      const lockedConfigurationMock = {
-        getContent: vi.fn().mockResolvedValue({}),
-      } as unknown as LockedConfiguration;
-      container.bind<LockedConfiguration>(LockedConfiguration).toConstantValue(lockedConfigurationMock);
     }
     return super.initConfigurationRegistry(container, notifications, configurationRegistryEmitter);
   }
@@ -103,7 +85,6 @@ beforeAll(async () => {
       app: {
         on: vi.fn(),
         getVersion: vi.fn(),
-        getAppPath: vi.fn().mockReturnValue('a-custom-appPath'),
       },
       clipboard: {
         writeText: vi.fn(),
@@ -187,7 +168,7 @@ test('Check SecurityRestrictions on Links and user accept', async () => {
 
   expect(showMessageBoxMock).toBeCalledWith({
     buttons: ['Yes', 'Copy link', 'Cancel'],
-    message: 'Are you sure you want to open the external website?',
+    message: 'Are you sure you want to open the external website ?',
     detail: 'https://www.my-custom-domain.io',
     cancelId: 2,
     title: 'Open External Website',
@@ -214,7 +195,7 @@ test('Check SecurityRestrictions on Links and user copy link', async () => {
 
   expect(showMessageBoxMock).toBeCalledWith({
     buttons: ['Yes', 'Copy link', 'Cancel'],
-    message: 'Are you sure you want to open the external website?',
+    message: 'Are you sure you want to open the external website ?',
     detail: 'https://www.my-custom-domain.io',
     title: 'Open External Website',
     cancelId: 2,
@@ -244,7 +225,7 @@ test('Check SecurityRestrictions on Links and user refuses', async () => {
   expect(showMessageBoxMock).toBeCalledWith({
     cancelId: 2,
     buttons: ['Yes', 'Copy link', 'Cancel'],
-    message: 'Are you sure you want to open the external website?',
+    message: 'Are you sure you want to open the external website ?',
     detail: 'https://www.my-custom-domain.io',
     title: 'Open External Website',
     type: 'question',
@@ -340,20 +321,12 @@ test('configurationRegistry propagated', async () => {
   const directoriesMock = {
     getConfigurationDirectory: vi.fn().mockReturnValue(tmpdir()),
   } as unknown as Directories;
-  const defaultConfigurationMock = {
-    getContent: vi.fn().mockResolvedValue({}),
-  } as unknown as DefaultConfiguration;
-  const lockedConfigurationMock = {
-    getContent: vi.fn().mockResolvedValue({}),
-  } as unknown as LockedConfiguration;
   const notifications: NotificationCardOptions[] = [];
 
   inversifyContainer.bind<ApiSenderType>(ApiSenderType).toConstantValue(apiSenderMock);
   inversifyContainer.bind<Directories>(Directories).toConstantValue(directoriesMock);
-  inversifyContainer.bind<DefaultConfiguration>(DefaultConfiguration).toConstantValue(defaultConfigurationMock);
-  inversifyContainer.bind<LockedConfiguration>(LockedConfiguration).toConstantValue(lockedConfigurationMock);
 
-  const configurationRegistry = await pluginSystem.initConfigurationRegistry(
+  const configurationRegistry = pluginSystem.initConfigurationRegistry(
     inversifyContainer,
     notifications,
     configurationRegistryEmitter,
@@ -791,353 +764,5 @@ describe.each<{
     expect(errorMock).toHaveBeenCalledWith(rejectError);
     expect(originalTask.status).toEqual('in-progress');
     expect(originalTask.error).toEqual('Something went wrong while creating container provider: Error: an error');
-  });
-});
-
-describe('Log race condition fix', () => {
-  let pluginSystem: PluginSystem;
-
-  beforeEach(() => {
-    const trayMenu = {} as TrayMenu;
-    const mainWindowDeferred = Promise.withResolvers<BrowserWindow>();
-    pluginSystem = new PluginSystem(trayMenu, mainWindowDeferred);
-  });
-
-  test('should not throw error when window is destroyed during shutdown', () => {
-    vi.spyOn(pluginSystem, 'getWebContentsSender').mockImplementation(() => {
-      throw new Error('Unable to find the main window');
-    });
-    (pluginSystem as any).isQuitting = false;
-
-    const logger = pluginSystem.getLogHandler('test-channel', 'test-logger');
-    expect(() => {
-      logger.log('test');
-      logger.warn('test');
-      logger.error('test');
-      logger.onEnd();
-    }).not.toThrow();
-  });
-});
-
-describe('container-provider-registry:buildImage', () => {
-  type BuildImageHandler = (
-    _listener: IpcMainInvokeEvent,
-    containerBuildContextDirectory: string,
-    relativeContainerfilePath: string,
-    imageName: string | undefined,
-    platform: string,
-    selectedProvider: ProviderContainerConnectionInfo,
-    onDataCallbacksBuildImageId: number,
-    cancellableTokenId?: number,
-    buildargs?: { [key: string]: string },
-    taskId?: number,
-    target?: string,
-  ) => Promise<unknown>;
-
-  let handle: BuildImageHandler;
-  let createTaskSpy: Mock;
-
-  beforeEach(() => {
-    handle = handlers.get('container-provider-registry:buildImage');
-    expect(handle).not.equal(undefined);
-
-    createTaskSpy = vi.spyOn(TaskManager.prototype, 'createTask');
-  });
-
-  test('handler should create a task', async () => {
-    expect(createTaskSpy).not.toHaveBeenCalled();
-
-    await handle(
-      {} as unknown as IpcMainInvokeEvent,
-      'containerBuildContextDirectory',
-      'relativeContainerfilePath',
-      'imageName',
-      'platform',
-      {} as ProviderContainerConnectionInfo,
-      1,
-    );
-
-    expect(createTaskSpy).toHaveBeenCalledExactlyOnceWith(
-      expect.objectContaining({
-        title: expect.any(String),
-        action: {
-          name: 'Go to task >',
-          execute: expect.any(Function),
-        },
-      }),
-    );
-  });
-
-  test('task created should have appropriate title', async () => {
-    await handle(
-      {} as unknown as IpcMainInvokeEvent,
-      'containerBuildContextDirectory',
-      'relativeContainerfilePath',
-      'imageName',
-      'platform',
-      {} as ProviderContainerConnectionInfo,
-      1,
-    );
-
-    expect(createTaskSpy).toHaveBeenCalledExactlyOnceWith(
-      expect.objectContaining({
-        title: 'Building image imageName',
-      }),
-    );
-  });
-
-  test('build image with target options should specify it in the task title', async () => {
-    await handle(
-      {} as unknown as IpcMainInvokeEvent,
-      'containerBuildContextDirectory',
-      'relativeContainerfilePath',
-      'imageName',
-      'platform',
-      {} as ProviderContainerConnectionInfo,
-      1,
-      undefined,
-      undefined,
-      undefined,
-      'dummy-target',
-    );
-
-    expect(createTaskSpy).toHaveBeenCalledExactlyOnceWith(
-      expect.objectContaining({
-        title: 'Building image imageName (dummy-target)',
-      }),
-    );
-  });
-
-  test('task created should have correct action', async () => {
-    const navigateToImageBuildMock = vi.spyOn(NavigationManager.prototype, 'navigateToImageBuild');
-
-    await handle(
-      {} as unknown as IpcMainInvokeEvent,
-      'containerBuildContextDirectory',
-      'relativeContainerfilePath',
-      'imageName',
-      'platform',
-      {} as ProviderContainerConnectionInfo,
-      1,
-      undefined,
-      undefined,
-      55, // taskId
-    );
-
-    expect(navigateToImageBuildMock).not.toHaveBeenCalled();
-
-    const action: TaskAction | undefined = createTaskSpy.mock.calls[0]?.[0]?.action;
-    assert(action, 'task action should be defined');
-
-    action.execute({} as Task);
-
-    await vi.waitFor(() => {
-      expect(navigateToImageBuildMock).toHaveBeenCalledExactlyOnceWith(55);
-    });
-  });
-});
-
-describe('updateImage handler', () => {
-  test('should update image and set task status to success', async () => {
-    const handle = handlers.get('container-provider-registry:updateImage');
-    expect(handle).not.equal(undefined);
-
-    const engineId = 'engine1';
-    const imageId = 'sha256:abc123';
-    const tag = 'alpine:latest';
-
-    vi.spyOn(ContainerProviderRegistry.prototype, 'updateImage').mockResolvedValue(undefined);
-
-    const createTaskSpy = vi.spyOn(TaskManager.prototype, 'createTask');
-
-    await handle(undefined, engineId, imageId, tag);
-
-    expect(ContainerProviderRegistry.prototype.updateImage).toHaveBeenCalledWith(engineId, imageId, tag);
-    expect(createTaskSpy).toHaveBeenCalledWith({
-      title: `Updating image '${tag}'`,
-    });
-  });
-
-  test('should handle update errors and set task error', async () => {
-    const handle = handlers.get('container-provider-registry:updateImage');
-    expect(handle).not.equal(undefined);
-
-    const engineId = 'engine1';
-    const imageId = 'sha256:abc123';
-    const tag = 'invalid:image';
-
-    vi.spyOn(ContainerProviderRegistry.prototype, 'updateImage').mockRejectedValue(new Error('Network error'));
-
-    const createTaskSpy = vi.spyOn(TaskManager.prototype, 'createTask');
-
-    const result = await handle(undefined, engineId, imageId, tag);
-    expect(result).toHaveProperty('error');
-    expect(result.error).toBeInstanceOf(Error);
-    expect(result.error.message).toBe('Network error');
-
-    expect(createTaskSpy).toHaveBeenCalledWith({
-      title: `Updating image '${tag}'`,
-    });
-  });
-
-  test('should treat "Image is already the latest version" as success', async () => {
-    const handle = handlers.get('container-provider-registry:updateImage');
-    expect(handle).not.equal(undefined);
-
-    const engineId = 'engine1';
-    const imageId = 'sha256:abc123';
-    const tag = 'alpine:latest';
-
-    vi.spyOn(ContainerProviderRegistry.prototype, 'updateImage').mockRejectedValue(
-      new LatestImageError('Image is already the latest version'),
-    );
-
-    const createTaskSpy = vi.spyOn(TaskManager.prototype, 'createTask');
-
-    const result = await handle(undefined, engineId, imageId, tag);
-    // Should not return an error since this is treated as success
-    expect(result).not.toHaveProperty('error');
-
-    expect(createTaskSpy).toHaveBeenCalledWith({
-      title: `Updating image '${tag}'`,
-    });
-
-    // Verify the task was marked as success and name was updated
-    const createdTask = createTaskSpy.mock.results[0]?.value;
-    expect(createdTask.status).toBe('success');
-    expect(createdTask.name).toBe(`Image '${tag}' is already up to date`);
-  });
-});
-
-describe('container-provider-registry:playKube', () => {
-  type PlayKubeHandler = (
-    _listener: undefined,
-    kubernetesYamlFilePath: string,
-    selectedProvider: ProviderContainerConnectionInfo,
-    options?: {
-      build?: boolean;
-      replace?: boolean;
-      cancellableTokenId?: number;
-    },
-  ) => Promise<{ result: PlayKubeInfo | { error: Error } }>;
-
-  const PLAY_KUBE_INFO_MOCK: PlayKubeInfo = {
-    Pods: [],
-    RmReport: [],
-    Secrets: [],
-    StopReport: [],
-    Volumes: [],
-  };
-
-  const PROVIDER_CONTAINER_CONNECTION_INFO_MOCK: ProviderContainerConnectionInfo = {
-    name: 'Dummy',
-    type: 'podman',
-    connectionType: 'container',
-    displayName: 'Podman',
-    status: 'started',
-    endpoint: {
-      socketPath: '.sock',
-    },
-  };
-
-  test('should call ContainerProviderRegistry#playKube', async () => {
-    const handle: PlayKubeHandler = handlers.get('container-provider-registry:playKube');
-    expect(handle).not.equal(undefined);
-
-    const playKubeSpy = vi.spyOn(ContainerProviderRegistry.prototype, 'playKube');
-    playKubeSpy.mockResolvedValue(PLAY_KUBE_INFO_MOCK);
-
-    // Call the handler
-    const result = await handle(undefined, '/foo/bar.yaml', PROVIDER_CONTAINER_CONNECTION_INFO_MOCK, {
-      replace: true,
-    });
-    assert(!('error' in result));
-
-    // validate call
-    expect(result.result).toEqual(PLAY_KUBE_INFO_MOCK);
-    expect(playKubeSpy).toHaveBeenCalledExactlyOnceWith('/foo/bar.yaml', PROVIDER_CONTAINER_CONNECTION_INFO_MOCK, {
-      replace: true,
-    });
-  });
-
-  test('should create a task', async () => {
-    const handle: PlayKubeHandler = handlers.get('container-provider-registry:playKube');
-    expect(handle).not.equal(undefined);
-
-    vi.spyOn(ContainerProviderRegistry.prototype, 'playKube').mockResolvedValue(PLAY_KUBE_INFO_MOCK);
-
-    const createTaskSpy = vi.spyOn(TaskManager.prototype, 'createTask');
-
-    await handle(undefined, '/foo/bar.yaml', PROVIDER_CONTAINER_CONNECTION_INFO_MOCK);
-
-    expect(createTaskSpy).toHaveBeenCalledExactlyOnceWith({
-      title: 'Podman Play Kube',
-      cancellable: false,
-      cancellationTokenSourceId: undefined,
-    });
-
-    // Verify the task was marked as success and name was updated
-    const createdTask = createTaskSpy.mock.results[0]?.value;
-    expect(createdTask.status).toBe('success');
-  });
-
-  test('should create a cancellable task if cancellableTokenId is provided', async () => {
-    // let's create a cancellation token
-    const createTokenHandler: () => Promise<{ result: number }> = handlers.get('cancellableTokenSource:create');
-    expect(createTokenHandler).not.equal(undefined);
-    const { result: cancellationTokenId } = await createTokenHandler();
-
-    // Let's run the platKube logic
-    const playKubeHandler: PlayKubeHandler = handlers.get('container-provider-registry:playKube');
-    expect(playKubeHandler).not.equal(undefined);
-
-    const playKubeSpy = vi.spyOn(ContainerProviderRegistry.prototype, 'playKube');
-    playKubeSpy.mockResolvedValue(PLAY_KUBE_INFO_MOCK);
-
-    const createTaskSpy = vi.spyOn(TaskManager.prototype, 'createTask');
-
-    await playKubeHandler(undefined, '/foo/bar.yaml', PROVIDER_CONTAINER_CONNECTION_INFO_MOCK, {
-      cancellableTokenId: cancellationTokenId,
-    });
-
-    expect(createTaskSpy).toHaveBeenCalledExactlyOnceWith({
-      title: 'Podman Play Kube',
-      cancellable: true,
-      cancellationTokenSourceId: cancellationTokenId,
-    });
-
-    // Verify the task was marked as success and name was updated
-    const createdTask = createTaskSpy.mock.results[0]?.value;
-    expect(createdTask.status).toBe('success');
-
-    // ensure the internal logic nicely created an AbortSignal
-    const kubePlayOptions = playKubeSpy.mock.calls[0]?.[2];
-    expect(kubePlayOptions?.abortSignal).toBeDefined();
-    expect(kubePlayOptions?.abortSignal).toBeInstanceOf(AbortSignal);
-  });
-
-  test('task should be failed if ContainerProviderRegistry#kubePlay throw an error', async () => {
-    const handle: PlayKubeHandler = handlers.get('container-provider-registry:playKube');
-    expect(handle).not.equal(undefined);
-
-    vi.spyOn(ContainerProviderRegistry.prototype, 'playKube').mockRejectedValue(new Error('Dummy Foo'));
-
-    const createTaskSpy = vi.spyOn(TaskManager.prototype, 'createTask');
-
-    const result = await handle(undefined, '/foo/bar.yaml', PROVIDER_CONTAINER_CONNECTION_INFO_MOCK);
-    assert('error' in result);
-    assert(result.error instanceof Error);
-    expect(result?.error?.message).toBe('Dummy Foo');
-
-    expect(createTaskSpy).toHaveBeenCalledExactlyOnceWith({
-      title: 'Podman Play Kube',
-      cancellable: false,
-      cancellationTokenSourceId: undefined,
-    });
-
-    // Verify the task was marked as success and name was updated
-    const createdTask = createTaskSpy.mock.results[0]?.value;
-    expect(createdTask.status).toBe('failure');
-    expect(createdTask.error).toBe('Error: Dummy Foo');
   });
 });

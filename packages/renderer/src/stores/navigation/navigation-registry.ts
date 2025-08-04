@@ -21,16 +21,10 @@ import type { Component } from 'svelte';
 import { type Writable, writable } from 'svelte/store';
 import type { IconSize } from 'svelte-fa';
 
-import { configurationProperties } from '/@/stores/configurationProperties';
 import { EventStore } from '/@/stores/event-store';
 
-import { createNavigationContainerEntry } from './navigation-registry-container.svelte';
+import { configurationProperties } from '../configurationProperties';
 import { createNavigationExtensionEntry, createNavigationExtensionGroup } from './navigation-registry-extension.svelte';
-import { createNavigationImageEntry } from './navigation-registry-image.svelte';
-import { createNavigationKubernetesGroup } from './navigation-registry-kubernetes.svelte';
-import { createNavigationNetworkEntry } from './navigation-registry-network.svelte';
-import { createNavigationPodEntry } from './navigation-registry-pod.svelte';
-import { createNavigationVolumeEntry } from './navigation-registry-volume.svelte';
 
 export interface NavigationRegistryEntry {
   name: string;
@@ -63,12 +57,6 @@ let hiddenItems: string[] = [];
 let values: NavigationRegistryEntry[] = [];
 let initialized = false;
 const init = (): void => {
-  values.push(createNavigationContainerEntry());
-  values.push(createNavigationPodEntry());
-  values.push(createNavigationImageEntry());
-  values.push(createNavigationVolumeEntry());
-  values.push(createNavigationNetworkEntry());
-  values.push(createNavigationKubernetesGroup());
   values.push(createNavigationExtensionEntry());
   values.push(createNavigationExtensionGroup());
   hideItems().catch((err: unknown) => console.error('Error hiding navigation items', err));

@@ -18,8 +18,8 @@
 
 import '@testing-library/jest-dom/vitest';
 
-import type { ContainerInfo, Port } from '@podman-desktop/api';
-import { fireEvent, render, screen } from '@testing-library/svelte';
+import type { ContainerInfo, Port } from '@kortex-app/api';
+import { render, screen } from '@testing-library/svelte';
 import { afterEach, beforeAll, beforeEach, expect, test, vi } from 'vitest';
 
 import PodColumnActions from './PodColumnActions.svelte';
@@ -83,9 +83,6 @@ test('Expect error message', async () => {
 
   render(PodColumnActions, { object: pod });
 
-  const tooltipTrigger = screen.getByTestId('tooltip-trigger');
-  await fireEvent.mouseEnter(tooltipTrigger);
-
-  const error = await screen.findByText('Pod failed');
+  const error = screen.getByText('Pod failed');
   expect(error).toBeInTheDocument();
 });

@@ -16,12 +16,10 @@
  * SPDX-License-Identifier: Apache-2.0
  ***********************************************************************/
 
-const { exec, execFile } = require('child_process');
+const exec = require('child_process').exec;
 const Arch = require('builder-util').Arch;
 const path = require('path');
 const { flipFuses, FuseVersion, FuseV1Options } = require('@electron/fuses');
-const product = require('./product.json');
-const fs = require('node:fs');
 
 if (process.env.VITE_APP_VERSION === undefined) {
   const now = new Date();
@@ -68,46 +66,12 @@ async function addElectronFuses(context) {
 }
 
 /**
- * This function will start the script that will bundle the extensions#remote from the `product.json`
- * to the extensions-extra folder
- *
- * @remarks it should be called in the beforePack to populate the folder extensions-extra before electron builder pack them
- */
-async function packageRemoteExtensions(context) {
-  const downloadScript = path.join('packages', 'main', 'dist', 'download-remote-extensions.cjs');
-  if (!fs.existsSync(downloadScript)) {
-    console.warn(`${downloadScript} not found, skipping remote extension download`);
-    return;
-  }
-
-  const destination = path.resolve('./extensions-extra');
-
-  await new Promise((resolve, reject) => {
-    execFile(
-      'node',
-      [downloadScript, `--output=${destination}`],
-      { maxBuffer: 10 * 1024 * 1024 }, // use 10MB else default size is too small and we get stdout maxBuffer length exceeded
-      (error, stdout, stderr) => {
-        console.log(stdout);
-        console.log(stderr);
-        if (error) {
-          reject(error);
-        } else {
-          resolve();
-        }
-      },
-    );
-  });
-  context.packager.config.extraResources.push('./extensions-extra/**');
-}
-
-/**
  * @type {import('electron-builder').Configuration}
  * @see https://www.electron.build/configuration/configuration
  */
 const config = {
-  productName: product.name,
-  appId: product.appId,
+  productName: 'Kortex',
+  appId: 'dev.kortex-hub.Kortex',
   directories: {
     output: 'dist',
     buildResources: 'buildResources',
@@ -116,38 +80,7 @@ const config = {
   npmRebuild: false,
   beforePack: async context => {
     const DEFAULT_ASSETS = [];
-    const PODMAN_EXTENSION_ASSETS = 'extensions/podman/packages/extension/assets';
     context.packager.config.extraResources = DEFAULT_ASSETS;
-
-    // download & package remote extensions
-    await packageRemoteExtensions(context);
-
-    // include product.json
-    context.packager.config.extraResources.push({
-      from: 'product.json',
-      to: 'product.json',
-    });
-
-    // universal build, add both pkg files
-    // this is hack to avoid issue https://github.com/electron/universal/issues/36
-    if (
-      context.appOutDir.endsWith('mac-universal-x64-temp') ||
-      context.appOutDir.endsWith('mac-universal-arm64-temp')
-    ) {
-      context.packager.config.extraResources = DEFAULT_ASSETS;
-      context.packager.config.extraResources.push(`${PODMAN_EXTENSION_ASSETS}/podman-installer-macos-universal*.pkg`);
-      return;
-    }
-
-    if (context.arch === Arch.arm64 && context.electronPlatformName === 'darwin') {
-      context.packager.config.extraResources.push(`${PODMAN_EXTENSION_ASSETS}/podman-installer-macos-aarch64-*.pkg`);
-      context.packager.config.extraResources.push(`${PODMAN_EXTENSION_ASSETS}/podman-image-arm64.zst`);
-    }
-
-    if (context.arch === Arch.x64 && context.electronPlatformName === 'darwin') {
-      context.packager.config.extraResources.push(`${PODMAN_EXTENSION_ASSETS}/podman-installer-macos-amd64-*.pkg`);
-      context.packager.config.extraResources.push(`${PODMAN_EXTENSION_ASSETS}/podman-image-x64.zst`);
-    }
 
     if (context.electronPlatformName === 'win32') {
       // add the win-ca package
@@ -155,15 +88,6 @@ const config = {
         from: 'node_modules/win-ca/lib/roots.exe',
         to: 'win-ca/roots.exe',
       });
-      // add podman installer
-      if (context.arch === Arch.x64) {
-        context.packager.config.extraResources.push(`${PODMAN_EXTENSION_ASSETS}/podman-installer-windows-amd64.msi`);
-        context.packager.config.extraResources.push(`${PODMAN_EXTENSION_ASSETS}/podman-image-x64.zst`);
-      }
-      if (context.arch === Arch.arm64) {
-        context.packager.config.extraResources.push(`${PODMAN_EXTENSION_ASSETS}/podman-installer-windows-arm64.msi`);
-        context.packager.config.extraResources.push(`${PODMAN_EXTENSION_ASSETS}/podman-image-arm64.zst`);
-      }
     }
   },
   afterPack: async context => {
@@ -171,12 +95,11 @@ const config = {
   },
   files: ['packages/**/dist/**', 'extensions/**/builtin/*.cdix/**', 'packages/main/src/assets/**'],
   portable: {
-    artifactName: `${product.artifactName}${artifactNameSuffix}-\${version}-\${arch}.\${ext}`,
+    artifactName: `kortex${artifactNameSuffix}-\${version}-\${arch}.\${ext}`,
   },
   nsis: {
-    artifactName: `${product.artifactName}${artifactNameSuffix}-\${version}-setup-\${arch}.\${ext}`,
+    artifactName: `kortex${artifactNameSuffix}-\${version}-setup-\${arch}.\${ext}`,
     oneClick: false,
-    include: 'buildResources/installer.nsh',
   },
   win: {
     target: [
@@ -206,12 +129,6 @@ const config = {
       '--device=dri',
       // Read/write home directory access
       '--filesystem=home',
-      // Read-only access to /usr and /etc for managed-configuration support.
-      // Flatpak sandboxes these directories, so we can't use --filesystem=/usr/share/podman-desktop:ro directly.
-      // host-os:ro only exposes /usr and parts of /etc (not the full filesystem).
-      // See: https://github.com/flatpak/flatpak/issues/5575
-      // See: https://man7.org/linux/man-pages/man5/flatpak-metadata.5.html (host-os section)
-      '--filesystem=host-os:ro',
       // Read podman socket
       '--filesystem=xdg-run/podman:create',
       // Read/write containers directory access (ability to save the application preferences)
@@ -232,28 +149,23 @@ const config = {
       '--talk-name=org.kde.StatusNotifierWatcher',
       // Allow to interact with Flatpak system to execute commands outside the application's sandbox
       '--talk-name=org.freedesktop.Flatpak',
-      // required to fix cursor scaling on wayland https://github.com/electron/electron/issues/19810 when the user uses --socket=wayland in their flatpak run
-      '--env=XCURSOR_PATH=/run/host/user-share/icons:/run/host/share/icons',
-      '--env=XDG_SESSION_TYPE=x11',
     ],
     useWaylandFlags: 'false',
-    artifactName: `${product.artifactName}-\${version}.\${ext}`,
-    runtimeVersion: '25.08',
+    artifactName: 'kortex-${version}.${ext}',
+    runtimeVersion: '24.08',
     branch: 'main',
     files: [
-      ['.flatpak-appdata.xml', '/share/metainfo/io.podman_desktop.PodmanDesktop.metainfo.xml'],
+      ['.flatpak-appdata.xml', '/share/metainfo/dev.kortex.Kortex.metainfo.xml'],
       ['buildResources/icon-512x512.png', '/share/icons/hicolor/512x512/apps/io.podman_desktop.PodmanDesktop.png'],
     ],
   },
   linux: {
     category: 'Development',
     icon: './buildResources/icon-512x512.png',
-    executableName: product.artifactName,
-    artifactName: `${product.artifactName}${artifactNameSuffix}-\${version}-\${arch}.\${ext}`,
     target: ['flatpak', { target: 'tar.gz', arch: ['x64', 'arm64'] }],
   },
   mac: {
-    artifactName: `${product.artifactName}${artifactNameSuffix}-\${version}-\${arch}.\${ext}`,
+    artifactName: `kortex${artifactNameSuffix}-\${version}-\${arch}.\${ext}`,
     hardenedRuntime: true,
     entitlements: './node_modules/electron-builder-notarize/entitlements.mac.inherit.plist',
     target: {
@@ -282,8 +194,8 @@ const config = {
     ],
   },
   protocols: {
-    name: product.name,
-    schemes: [product.urlProtocol],
+    name: 'Kortex',
+    schemes: ['kortex'],
     role: 'Editor',
   },
   publish: {

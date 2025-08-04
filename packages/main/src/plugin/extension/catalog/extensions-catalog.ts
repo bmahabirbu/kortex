@@ -1,5 +1,5 @@
 /**********************************************************************
- * Copyright (C) 2023-2026 Red Hat, Inc.
+ * Copyright (C) 2023-2025 Red Hat, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,15 +20,15 @@ import type { HttpsOptions, OptionsOfTextResponseBody } from 'got';
 import got from 'got';
 import { HttpProxyAgent, HttpsProxyAgent } from 'hpagent';
 import { inject, injectable } from 'inversify';
-import { coerce, satisfies } from 'semver';
 
+import { ApiSenderType } from '/@/plugin/api.js';
 import { Certificates } from '/@/plugin/certificates.js';
-import { ExtensionApiVersion } from '/@/plugin/extension/extension-api-version.js';
+import type {
+  CatalogExtension,
+  CatalogFetchableExtension,
+} from '/@/plugin/extension/catalog/extensions-catalog-api.js';
 import { Proxy } from '/@/plugin/proxy.js';
-import { ApiSenderType } from '/@api/api-sender/api-sender-type.js';
 import { type IConfigurationNode, IConfigurationRegistry } from '/@api/configuration/models.js';
-import { CatalogExtension, CatalogFetchableExtension } from '/@api/extension-catalog/extensions-catalog-api.js';
-import product from '/@product.json' with { type: 'json' };
 
 import { ExtensionsCatalogSettings } from './extensions-catalog-settings.js';
 
@@ -37,7 +37,8 @@ import { ExtensionsCatalogSettings } from './extensions-catalog-settings.js';
  */
 @injectable()
 export class ExtensionsCatalog {
-  public static readonly DEFAULT_EXTENSIONS_URL = product.catalog.default;
+  public static readonly DEFAULT_EXTENSIONS_URL =
+    'https://gist.githubusercontent.com/benoitf/63df9e7193c6cabcd8fc0052e3e0cc4c/raw/6ed37b4e24975f54a4583a3dca998fbd3218777e/extensions.json';
 
   private lastFetchTime = 0;
   private cachedCatalog: InternalCatalogJSON | undefined;
@@ -52,8 +53,6 @@ export class ExtensionsCatalog {
     private configurationRegistry: IConfigurationRegistry,
     @inject(ApiSenderType)
     private apiSender: ApiSenderType,
-    @inject(ExtensionApiVersion)
-    private extensionApiVersion: ExtensionApiVersion,
   ) {}
 
   init(): void {
@@ -125,8 +124,6 @@ export class ExtensionsCatalog {
   // get the list of extensions
   async getExtensions(): Promise<CatalogExtension[]> {
     const catalogJSON = await this.getCatalogJson();
-    const appVersion = this.extensionApiVersion.getApiVersion();
-    const currentPodmanDesktopVersion = coerce(appVersion);
     if (catalogJSON?.extensions) {
       // we have a list of extensions
       return catalogJSON.extensions.map(extension => {
@@ -140,27 +137,16 @@ export class ExtensionsCatalog {
           extensionName: extension.extensionName,
           shortDescription: extension.shortDescription,
           displayName: extension.displayName,
-          versions: extension.versions
-            .filter(version => {
-              const extensionRequirePodmanDesktopVersion = version.podmanDesktopVersion;
-              if (extensionRequirePodmanDesktopVersion && currentPodmanDesktopVersion) {
-                //  keep the versions that are compatible with this version of Podman Desktop
-                return satisfies(currentPodmanDesktopVersion, extensionRequirePodmanDesktopVersion);
-              } else {
-                // if no version is specified, keep the version
-                return true;
-              }
-            })
-            .map(version => {
-              return {
-                version: version.version,
-                podmanDesktopVersion: version.podmanDesktopVersion,
-                preview: version.preview,
-                ociUri: version.ociUri,
-                files: version.files,
-                lastUpdated: new Date(version.lastUpdated),
-              };
-            }),
+          versions: extension.versions.map(version => {
+            return {
+              version: version.version,
+              podmanDesktopVersion: version.podmanDesktopVersion,
+              preview: version.preview,
+              ociUri: version.ociUri,
+              files: version.files,
+              lastUpdated: new Date(version.lastUpdated),
+            };
+          }),
         };
       });
     }

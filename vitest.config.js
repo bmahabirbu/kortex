@@ -25,18 +25,16 @@ const PODMAN_DESKTOP_EXCLUDED = [
 ];
 
 /**
- * vitest projects configuration for unit tests
+ * vitest workspace configuration for unit tests
  */
 export default defineConfig({
   test: {
-    projects: [
-      '{extensions,packages,tools,storybook,website,scripts}/**/{vitest,vite}.config.{js,ts}',
-      '!**/builtin/**',
-    ],
+    workspace: ['{extensions,packages,tools,scripts}/**/{vitest,vite}.config.{js,ts}', '!**/builtin/**'],
     // use GitHub action reporters when running in CI
     reporters: process.env.CI ? [['junit', { includeConsoleOutput: false }], 'default'] : ['default'],
     outputFile: process.env.CI ? { junit: 'coverage/junit-results.xml' } : {},
     coverage: {
+      all: true,
       clean: true,
       excludeAfterRemap: true,
       provider: 'v8',

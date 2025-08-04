@@ -1,5 +1,5 @@
 /**********************************************************************
- * Copyright (C) 2022-2026 Red Hat, Inc.
+ * Copyright (C) 2022-2025 Red Hat, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,12 +19,7 @@
 import * as os from 'node:os';
 import { promisify } from 'node:util';
 
-import type {
-  TelemetryLogger,
-  TelemetryLoggerOptions,
-  TelemetrySender,
-  TelemetryTrustedValue,
-} from '@podman-desktop/api';
+import type { TelemetryLogger, TelemetryLoggerOptions, TelemetrySender, TelemetryTrustedValue } from '@kortex-app/api';
 import type { EventProperties } from '@segment/analytics-core';
 import { Analytics, type UserTraits } from '@segment/analytics-node';
 import { app } from 'electron';
@@ -33,14 +28,9 @@ import getos from 'getos';
 import { inject, injectable } from 'inversify';
 import * as osLocale from 'os-locale';
 
-import { DefaultConfiguration } from '/@/plugin/default-configuration.js';
-import { LockedConfiguration } from '/@/plugin/locked-configuration.js';
 import { type IConfigurationNode, IConfigurationRegistry } from '/@api/configuration/models.js';
 import type { Event } from '/@api/event.js';
 import type { FeedbackProperties } from '/@api/feedback.js';
-import { TelemetryMessages } from '/@api/telemetry.js';
-import { TelemetrySettings } from '/@api/telemetry/telemetry-settings.js';
-import product from '/@product.json' with { type: 'json' };
 
 import telemetry from '../../../../../telemetry.json' with { type: 'json' };
 import { stoppedExtensions } from '../../util.js';
@@ -48,6 +38,7 @@ import { Emitter } from '../events/emitter.js';
 import { TelemetryTrustedValue as TypeTelemetryTrustedValue } from '../types/telemetry.js';
 import { Identity } from './identity.js';
 import type { TelemetryRule } from './telemetry-api.js';
+import { TelemetrySettings } from './telemetry-settings.js';
 
 export const TRACK_EVENT_TYPE = 'track';
 export const PAGE_EVENT_TYPE = 'page';
@@ -70,7 +61,7 @@ export type EventType =
 export class Telemetry {
   public static readonly DEFAULT_DELAY_AGGREGATE = 10_000; // 10 seconds
 
-  private static readonly SEGMENT_KEY = product.telemetry.key;
+  private static readonly SEGMENT_KEY = 'bM9vFhjiVszj9rvZGyUwYUAh9CmKGU4z';
 
   private cachedTelemetrySettings: TelemetryRule[] | undefined;
   private regexp: Map<string, RegExp> = new Map();
@@ -99,27 +90,20 @@ export class Telemetry {
   constructor(
     @inject(IConfigurationRegistry)
     private configurationRegistry: IConfigurationRegistry,
-    @inject(DefaultConfiguration)
-    private defaultConfiguration: DefaultConfiguration,
-    @inject(LockedConfiguration)
-    private lockedConfiguration: LockedConfiguration,
   ) {
     this.identity = new Identity();
     this.lastTimeEvents = new Map();
   }
 
   async init(): Promise<void> {
-    const telemetryMessages = this.getTelemetryMessages();
-    const telemetryInfo = telemetryMessages.info
-      ? ` [${telemetryMessages.info.link}](${telemetryMessages.info.url})`
-      : '';
     const telemetryConfigurationNode: IConfigurationNode = {
       id: 'preferences.telemetry',
       title: 'Telemetry',
       type: 'object',
       properties: {
         [TelemetrySettings.SectionName + '.' + TelemetrySettings.Enabled]: {
-          markdownDescription: `${telemetryMessages.acceptMessage}${telemetryInfo}`,
+          markdownDescription:
+            'Help improve Podman Desktop by allowing anonymous usage data to be sent to Red Hat. Read our [Privacy statement](https://developers.redhat.com/article/tool-data-collection)',
           type: 'boolean',
           default: true,
         },
@@ -160,8 +144,6 @@ export class Telemetry {
         this.pendingItems.length = 0;
       }
     }
-
-    this.loadEnterpriseTelemetry();
   }
 
   // notify if the configuration change for enablement of the telemetry
@@ -178,24 +160,6 @@ export class Telemetry {
     const telemetryConfiguration = this.configurationRegistry.getConfiguration(TelemetrySettings.SectionName);
     const enabled = telemetryConfiguration.get<boolean>(TelemetrySettings.Enabled);
     return enabled === true;
-  }
-
-  getTelemetryMessages(): TelemetryMessages {
-    return {
-      acceptMessage: product.telemetry.acceptMessage,
-      info: product.telemetry.info
-        ? {
-            link: product.telemetry.info?.link,
-            url: product.telemetry.info?.url,
-          }
-        : undefined,
-      privacy: product.telemetry.privacy
-        ? {
-            link: product.telemetry.privacy?.link,
-            url: product.telemetry.privacy?.url,
-          }
-        : undefined,
-    } as TelemetryMessages;
   }
 
   protected createBuiltinTelemetrySender(extensionInfo: {
@@ -535,19 +499,6 @@ export class Telemetry {
       }
     }
     return undefined;
-  }
-
-  protected loadEnterpriseTelemetry(): void {
-    const defaultTelemetryInfo = this.defaultConfiguration.getTelemetryInfo();
-    const lockedTelemetryInfo = this.lockedConfiguration.getTelemetryInfo();
-
-    if (defaultTelemetryInfo) {
-      this.track(defaultTelemetryInfo.event, defaultTelemetryInfo.eventProperties);
-    }
-
-    if (lockedTelemetryInfo) {
-      this.track(lockedTelemetryInfo.event, lockedTelemetryInfo.eventProperties);
-    }
   }
 }
 
