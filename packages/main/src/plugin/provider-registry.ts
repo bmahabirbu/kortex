@@ -67,11 +67,12 @@ import { inject, injectable } from 'inversify';
 
 import { ApiSenderType } from '/@api/api-sender/api-sender-type.js';
 import type { Event } from '/@api/event.js';
-import type {
+import {
   LifecycleMethod,
   PreflightChecksCallback,
   ProviderCleanupActionInfo,
   ProviderConnectionInfo,
+  ProviderConnectionType,
   ProviderContainerConnectionInfo,
   ProviderInferenceConnectionInfo,
   ProviderInfo,
@@ -748,6 +749,7 @@ export class ProviderRegistry {
               name: connection.vmTypeDisplayName ?? connection.vmType,
             }
           : undefined,
+        connectionType: ProviderConnectionType.CONTAINER,
       };
     } else if (this.isKubernetesConnection(connection)) {
       providerConnection = {
@@ -757,12 +759,26 @@ export class ProviderRegistry {
         endpoint: {
           apiURL: connection.endpoint.apiURL,
         },
+        connectionType: ProviderConnectionType.KUBERNETES,
+      };
+    } else if (this.isInferenceConnection(connection)) {
+      providerConnection = {
+        name: connection.name,
+        status: connection.status(),
+        connectionType: ProviderConnectionType.INFERENCE,
+      };
+    } else if (this.isMCPConnection(connection)) {
+      providerConnection = {
+        name: connection.name,
+        status: connection.status(),
+        connectionType: ProviderConnectionType.MCP,
       };
     } else {
       providerConnection = {
         connectionType: 'vm',
         name: connection.name,
         status: connection.status(),
+        connectionType: ProviderConnectionType.VM,
       };
     }
 
@@ -1183,16 +1199,56 @@ export class ProviderRegistry {
     return vmConnection;
   }
 
+  protected getMatchingInferenceConnectionFromProvider(
+    internalProviderId: string,
+    providerInferenceConnectionInfo: ProviderInferenceConnectionInfo,
+  ): InferenceProviderConnection {
+    // grab the correct provider
+    const provider = this.getMatchingProvider(internalProviderId);
+
+    // grab the correct kubernetes connection
+    const connection = provider.inferenceConnections.find(
+      connection => connection.name === providerInferenceConnectionInfo.name,
+    );
+    if (!connection) {
+      throw new Error(`no kubernetes connection matching provider id ${internalProviderId}`);
+    }
+    return connection;
+  }
+
+  protected getMatchingMCPConnectionFromProvider(
+    internalProviderId: string,
+    providerMCPConnectionInfo: ProviderMCPConnectionInfo,
+  ): MCPProviderConnection {
+    // grab the correct provider
+    const provider = this.getMatchingProvider(internalProviderId);
+
+    // grab the correct kubernetes connection
+    const connection = provider.mcpConnections.find(connection => connection.name === providerMCPConnectionInfo.name);
+    if (!connection) {
+      throw new Error(`no kubernetes connection matching provider id ${internalProviderId}`);
+    }
+    return connection;
+  }
+
   getMatchingConnectionFromProvider(
     internalProviderId: string,
     providerContainerConnectionInfo: ProviderConnectionInfo | ContainerProviderConnection,
   ): ProviderConnection {
+    // if provider container connection
     if (this.isProviderContainerConnection(providerContainerConnectionInfo)) {
       return this.getMatchingContainerConnectionFromProvider(internalProviderId, providerContainerConnectionInfo);
-    } else if (this.isProviderKubernetesConnectionInfo(providerContainerConnectionInfo)) {
-      return this.getMatchingKubernetesConnectionFromProvider(internalProviderId, providerContainerConnectionInfo);
-    } else {
-      return this.getMatchingVmConnectionFromProvider(internalProviderId, providerContainerConnectionInfo);
+    }
+
+    switch (providerContainerConnectionInfo.connectionType) {
+      case ProviderConnectionType.VM:
+        return this.getMatchingVmConnectionFromProvider(internalProviderId, providerContainerConnectionInfo);
+      case ProviderConnectionType.KUBERNETES:
+        return this.getMatchingKubernetesConnectionFromProvider(internalProviderId, providerContainerConnectionInfo);
+      case ProviderConnectionType.INFERENCE:
+        return this.getMatchingInferenceConnectionFromProvider(internalProviderId, providerContainerConnectionInfo);
+      case ProviderConnectionType.MCP:
+        return this.getMatchingMCPConnectionFromProvider(internalProviderId, providerContainerConnectionInfo);
     }
   }
 
