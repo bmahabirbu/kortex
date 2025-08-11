@@ -1,5 +1,5 @@
 /**********************************************************************
- * Copyright (C) 2022-2026 Red Hat, Inc.
+ * Copyright (C) 2022-2025 Red Hat, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,8 +25,6 @@ import { app, clipboard as electronClipboard } from 'electron';
 import { inject, injectable, preDestroy } from 'inversify';
 
 import { ColorRegistry } from '/@/plugin/color-registry.js';
-import { ExtensionApiVersion } from '/@/plugin/extension/extension-api-version.js';
-import { FeatureRegistry } from '/@/plugin/feature-registry.js';
 import {
   KubeGeneratorRegistry,
   type KubernetesGeneratorProvider,
@@ -34,19 +32,17 @@ import {
 import { MenuRegistry } from '/@/plugin/menu-registry.js';
 import { NavigationManager } from '/@/plugin/navigation/navigation-manager.js';
 import { WebviewRegistry } from '/@/plugin/webview/webview-registry.js';
-import { ApiSenderType } from '/@api/api-sender/api-sender-type.js';
-import { IAsyncDisposable } from '/@api/async-disposable.js';
 import { type IConfigurationNode, IConfigurationRegistry } from '/@api/configuration/models.js';
 import type { Event } from '/@api/event.js';
 import type { ExtensionError, ExtensionInfo, ExtensionUpdateInfo } from '/@api/extension-info.js';
 import { DEFAULT_TIMEOUT, ExtensionLoaderSettings } from '/@api/extension-loader-settings.js';
 import type { ImageInspectInfo } from '/@api/image-inspect-info.js';
-import { PodInfo } from '/@api/pod-info.js';
 import { RepositoryInfoParser } from '/@api/repository-info-parser.js';
-import product from '/@product.json' with { type: 'json' };
 
 import { securityRestrictionCurrentHandler } from '../../security-restrictions-handler.js';
 import { getBase64Image, isLinux, isMac, isWindows } from '../../util.js';
+import { ApiSenderType } from '../api.js';
+import type { PodInfo } from '../api/pod-info.js';
 import { AuthenticationImpl } from '../authentication.js';
 import { CancellationTokenSource } from '../cancellation-token.js';
 import { Certificates } from '../certificates.js';
@@ -91,11 +87,11 @@ import { Disposable } from '../types/disposable.js';
 import { TelemetryTrustedValue } from '../types/telemetry.js';
 import { Uri } from '../types/uri.js';
 import { Exec } from '../util/exec.js';
-import { getFreePort } from '../util/port.js';
 import { ViewRegistry } from '../view-registry.js';
-import { type AnalyzedExtension, ExtensionAnalyzer, ExtensionAnalyzerOptions } from './extension-analyzer.js';
+import { type AnalyzedExtension, ExtensionAnalyzer } from './extension-analyzer.js';
 import { ExtensionDevelopmentFolders } from './extension-development-folders.js';
 import { ExtensionWatcher } from './extension-watcher.js';
+import { MCPRegistry } from '../mcp/mcp-registry.js';
 
 export interface ActivatedExtension {
   id: string;
@@ -121,7 +117,7 @@ export interface AnalyzedExtensionWithApi extends AnalyzedExtension {
  * Handle the loading of an extension
  */
 @injectable()
-export class ExtensionLoader implements IAsyncDisposable {
+export class ExtensionLoader implements AsyncDisposable {
   private moduleLoader: ModuleLoader;
 
   protected activatedExtensions = new Map<string, ActivatedExtension>();
@@ -219,10 +215,9 @@ export class ExtensionLoader implements IAsyncDisposable {
     private extensionDevelopmentFolder: ExtensionDevelopmentFolders,
     @inject(ExtensionAnalyzer)
     private extensionAnalyzer: ExtensionAnalyzer,
-    @inject(ExtensionApiVersion)
-    private extensionApiVersion: ExtensionApiVersion,
-    @inject(FeatureRegistry)
-    private featureRegistry: FeatureRegistry,
+    @inject(MCPRegistry)
+    private mcpRegistry: MCPRegistry,
+
   ) {
     this.pluginsDirectory = directories.getPluginsDirectory();
     this.pluginsScanDirectory = directories.getPluginsScanDirectory();
@@ -232,7 +227,7 @@ export class ExtensionLoader implements IAsyncDisposable {
   }
 
   @preDestroy()
-  async asyncDispose(): Promise<void> {
+  async [Symbol.asyncDispose](): Promise<void> {
     await this.stopAllExtensions();
 
     // clear maps
@@ -319,10 +314,7 @@ export class ExtensionLoader implements IAsyncDisposable {
     // eslint-disable-next-line sonarjs/no-unsafe-unzip
     admZip.extractAllTo(unpackedDirectory, true);
 
-    const extension = await this.analyzeExtension({
-      extensionPath: unpackedDirectory,
-      removable: true,
-    });
+    const extension = await this.analyzeExtension(unpackedDirectory, true);
     if (!extension.error) {
       await this.loadExtension(extension);
       this.apiSender.send('extension-started', {});
@@ -458,16 +450,11 @@ export class ExtensionLoader implements IAsyncDisposable {
       fs.mkdirSync(this.extensionsStorageDirectory);
     }
 
-    let folders: string[];
+    let folders;
     // scan all extensions that we can find from the extensions folder
     if (import.meta.env.PROD) {
-      // in production mode, use the extensions & extensions-extra locally
-      const promises = await Promise.all([
-        this.readProductionFolders(path.join(__dirname, '../../../extensions')),
-        this.readDevelopmentFolders(path.join(process.resourcesPath, 'extensions-extra')),
-      ]);
-
-      folders = promises.flat();
+      // in production mode, use the extensions locally
+      folders = await this.readProductionFolders(path.join(__dirname, '../../../extensions'));
     } else {
       // in development mode, use the extensions locally
       folders = await this.readDevelopmentFolders(path.join(__dirname, '../../../extensions'));
@@ -477,27 +464,12 @@ export class ExtensionLoader implements IAsyncDisposable {
     const analyzedExtensions: AnalyzedExtension[] = [];
 
     const analyzedFoldersExtension = (
-      await Promise.all(
-        folders.map(folder =>
-          this.analyzeExtension({
-            extensionPath: folder,
-            removable: false,
-          }),
-        ),
-      )
+      await Promise.all(folders.map(folder => this.analyzeExtension(folder, false)))
     ).filter(extension => !extension.error);
     analyzedExtensions.push(...analyzedFoldersExtension);
 
     const analyzedExternalExtensions = (
-      await Promise.all(
-        externalExtensions.map(folder =>
-          this.analyzeExtension({
-            extensionPath: folder,
-            removable: false,
-            devMode: true,
-          }),
-        ),
-      )
+      await Promise.all(externalExtensions.map(folder => this.analyzeExtension(folder, false, true)))
     ).filter(extension => !extension.error);
     analyzedExtensions.push(...analyzedExternalExtensions);
 
@@ -507,26 +479,12 @@ export class ExtensionLoader implements IAsyncDisposable {
       // filter only directories ignoring node_modules directory
       const pluginDirectories = pluginDirEntries
         .filter(entry => entry.isDirectory())
-        .map(directory => path.join(this.pluginsDirectory, directory.name));
+        .map(directory => this.pluginsDirectory + '/' + directory.name);
 
       // collect all extensions from the pluginDirectory folders
       const analyzedPluginsDirectoryExtensions: AnalyzedExtension[] = (
-        await Promise.allSettled(
-          pluginDirectories.map(folder =>
-            this.analyzeExtension({
-              extensionPath: folder,
-              removable: true,
-            }),
-          ),
-        )
-      ).reduce((accumulator, result) => {
-        if (result.status === 'fulfilled') {
-          accumulator.push(result.value);
-        } else {
-          console.error('Something went wrong while trying to analyse an extension:', result.reason);
-        }
-        return accumulator;
-      }, [] as AnalyzedExtensionWithApi[]);
+        await Promise.all(pluginDirectories.map(folder => this.analyzeExtension(folder, true)))
+      ).filter(extension => !extension.error);
       analyzedExtensions.push(...analyzedPluginsDirectoryExtensions);
     }
 
@@ -547,11 +505,7 @@ export class ExtensionLoader implements IAsyncDisposable {
   protected async loadDevelopmentFolderExtensions(analyzedExtensions: AnalyzedExtension[]): Promise<void> {
     for (const folder of this.extensionDevelopmentFolder.getDevelopmentFolders()) {
       if (fs.existsSync(folder.path)) {
-        const analyzedExtension = await this.analyzeExtension({
-          extensionPath: folder.path,
-          removable: false,
-          devMode: true,
-        });
+        const analyzedExtension = await this.analyzeExtension(folder.path, false, true);
         if (!analyzedExtension.error) {
           analyzedExtensions.push(analyzedExtension);
         } else {
@@ -651,9 +605,6 @@ export class ExtensionLoader implements IAsyncDisposable {
   }
 
   async readDevelopmentFolders(folderPath: string): Promise<string[]> {
-    // only readdir on existing folder
-    if (!fs.existsSync(folderPath)) return [];
-
     const entries = await fs.promises.readdir(folderPath, { withFileTypes: true });
     // filter only directories ignoring node_modules directory
     return entries
@@ -682,9 +633,6 @@ export class ExtensionLoader implements IAsyncDisposable {
   }
 
   async readProductionFolders(folderPath: string): Promise<string[]> {
-    // only readdir on existing folder
-    if (!fs.existsSync(folderPath)) return [];
-
     const entries = await fs.promises.readdir(folderPath, { withFileTypes: true });
     return entries
       .filter(entry => entry.isDirectory() && entry.name !== 'node_modules')
@@ -740,11 +688,7 @@ export class ExtensionLoader implements IAsyncDisposable {
 
     // reload the extension
     try {
-      const updatedExtension = await this.analyzeExtension({
-        extensionPath: extension.path,
-        removable,
-        devMode: extension.devMode,
-      });
+      const updatedExtension = await this.analyzeExtension(extension.path, removable);
 
       if (!updatedExtension.error) {
         await this.loadExtension(updatedExtension, true);
@@ -872,8 +816,12 @@ export class ExtensionLoader implements IAsyncDisposable {
     }
   }
 
-  async analyzeExtension(options: ExtensionAnalyzerOptions): Promise<AnalyzedExtensionWithApi> {
-    const analyzedExtension = await this.extensionAnalyzer.analyzeExtension(options);
+  async analyzeExtension(
+    extensionPath: string,
+    removable: boolean,
+    devMode: boolean = false,
+  ): Promise<AnalyzedExtensionWithApi> {
+    const analyzedExtension = await this.extensionAnalyzer.analyzeExtension(extensionPath, removable, devMode);
 
     const api = this.createApi(analyzedExtension);
 
@@ -949,15 +897,6 @@ export class ExtensionLoader implements IAsyncDisposable {
       },
       onDidRegisterContainerConnection: (listener, thisArg, disposables) => {
         return providerRegistry.onDidRegisterContainerConnection(listener, thisArg, disposables);
-      },
-      onDidSetConnectionFactory: (listener, thisArg, disposables) => {
-        return providerRegistry.onDidSetConnectionFactory(listener, thisArg, disposables);
-      },
-      onDidUnsetConnectionFactory: (listener, thisArg, disposables) => {
-        return providerRegistry.onDidUnsetConnectionFactory(listener, thisArg, disposables);
-      },
-      getConnectionFactories: () => {
-        return providerRegistry.getConnectionFactories();
       },
       getContainerConnections: () => {
         return providerRegistry.getContainerConnections();
@@ -1050,6 +989,39 @@ export class ExtensionLoader implements IAsyncDisposable {
       },
       registerRegistryProvider: (registryProvider: containerDesktopAPI.RegistryProvider): Disposable => {
         const registration = imageRegistry.registerRegistryProvider(registryProvider);
+        disposables.push(registration);
+        return registration;
+      },
+    };
+
+    const mcpRegistryInstance = this.mcpRegistry;
+    const mcpRegistry: typeof containerDesktopAPI.mcpRegistry = {
+
+      registerRegistry: (registry: containerDesktopAPI.MCPRegistry): Disposable => {
+        return mcpRegistryInstance.registerMCPRegistry(registry);
+      },
+
+      suggestRegistry: (registry: containerDesktopAPI.MCPRegistrySuggestedProvider): Disposable => {
+        return mcpRegistryInstance.suggestMCPRegistry(registry);
+      },
+
+      unregisterRegistry: (registry: containerDesktopAPI.MCPRegistry): void => {
+        mcpRegistryInstance.unregisterMCPRegistry(registry);
+      },
+
+      onDidUpdateRegistry: (listener, thisArg, disposables) => {
+        return mcpRegistryInstance.onDidUpdateRegistry(listener, thisArg, disposables);
+      },
+
+      onDidRegisterRegistry: (listener, thisArg, disposables) => {
+        return mcpRegistryInstance.onDidRegisterRegistry(listener, thisArg, disposables);
+      },
+
+      onDidUnregisterRegistry: (listener, thisArg, disposables) => {
+        return mcpRegistryInstance.onDidUnregisterRegistry(listener, thisArg, disposables);
+      },
+      registerRegistryProvider: (registryProvider: containerDesktopAPI.MCPRegistryProvider): Disposable => {
+        const registration = mcpRegistryInstance.registerMCPRegistryProvider(registryProvider);
         disposables.push(registration);
         return registration;
       },
@@ -1339,9 +1311,6 @@ export class ExtensionLoader implements IAsyncDisposable {
       listPods(): Promise<PodInfo[]> {
         return containerProviderRegistry.listPods();
       },
-      inspectPod(engineId: string, podId: string): Promise<containerDesktopAPI.PodInspectInfo> {
-        return containerProviderRegistry.getPodInspect(engineId, podId);
-      },
       stopPod(engineId: string, podId: string): Promise<void> {
         return containerProviderRegistry.stopPod(engineId, podId);
       },
@@ -1431,9 +1400,6 @@ export class ExtensionLoader implements IAsyncDisposable {
 
     const telemetry = this.telemetry;
     const env: typeof containerDesktopAPI.env = {
-      get appName() {
-        return product.name;
-      },
       get isMac() {
         return isMac();
       },
@@ -1536,9 +1502,6 @@ export class ExtensionLoader implements IAsyncDisposable {
     };
 
     const navigation: typeof containerDesktopAPI.navigation = {
-      navigateToImageBuild: async (): Promise<void> => {
-        await this.navigationManager.navigateToImageBuild();
-      },
       navigateToDashboard: async (): Promise<void> => {
         await this.navigationManager.navigateToDashboard();
       },
@@ -1598,18 +1561,10 @@ export class ExtensionLoader implements IAsyncDisposable {
       ): Promise<void> => {
         await this.navigationManager.navigateToEditProviderContainerConnection(connection);
       },
-      navigateToCreateProviderConnection: async (providerId: string): Promise<void> => {
-        await this.navigationManager.navigateToCreateProviderConnection(providerId);
-      },
       navigateToOnboarding: async (extensionId?: string): Promise<void> => {
         let onboardingExtensionId = extensionId;
         onboardingExtensionId ??= extensionInfo.id;
         await this.navigationManager.navigateToOnboarding(onboardingExtensionId);
-      },
-      navigateToExtensionsCatalog: async (
-        options: containerDesktopAPI.NavigateToExtensionsCatalogOptions,
-      ): Promise<void> => {
-        await this.navigationManager.navigateToExtensionsCatalog(options);
       },
       navigate: async (routeId: string, ...args: unknown[]): Promise<void> => {
         return this.navigationManager.navigateToRoute(`${extensionInfo.id}.${routeId}`, args);
@@ -1626,10 +1581,6 @@ export class ExtensionLoader implements IAsyncDisposable {
       },
     };
 
-    const net: typeof containerDesktopAPI.net = {
-      getFreePort,
-    };
-
     const version = app.getVersion();
 
     return <typeof containerDesktopAPI>{
@@ -1640,7 +1591,6 @@ export class ExtensionLoader implements IAsyncDisposable {
       CancellationTokenSource: CancellationTokenSource,
       TelemetryTrustedValue: TelemetryTrustedValue,
       version,
-      apiVersion: this.extensionApiVersion.getApiVersion(),
       commands,
       env,
       process,
@@ -1666,7 +1616,7 @@ export class ExtensionLoader implements IAsyncDisposable {
       imageChecker,
       navigation,
       RepositoryInfoParser,
-      net,
+      mcpRegistry,
     };
   }
 
@@ -1805,12 +1755,6 @@ export class ExtensionLoader implements IAsyncDisposable {
       this.activatedExtensions.set(extension.id, activatedExtension);
       this.extensionState.set(extension.id, 'started');
       this.apiSender.send('extension-started');
-      this._onDidChange.fire();
-
-      const features = extension.manifest?.contributes?.features;
-      if (features && Array.isArray(features) && features.every(feature => typeof feature === 'string')) {
-        extension.subscriptions.push(this.featureRegistry.registerFeatures(extension.id, features));
-      }
     } catch (err) {
       console.log(`Activating extension ${extension.id} failed error:${err}`);
 
@@ -1892,11 +1836,7 @@ export class ExtensionLoader implements IAsyncDisposable {
 
     const extension = this.analyzedExtensions.get(extensionId);
     if (extension) {
-      const analyzedExtension = await this.analyzeExtension({
-        extensionPath: extension.path,
-        removable: extension.removable,
-        devMode: extension.devMode,
-      });
+      const analyzedExtension = await this.analyzeExtension(extension.path, extension.removable, extension.devMode);
 
       if (!analyzedExtension.error) {
         await this.loadExtension(analyzedExtension, true);
