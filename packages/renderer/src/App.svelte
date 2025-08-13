@@ -2,11 +2,10 @@
 import './app.css';
 import '@fortawesome/fontawesome-free/css/all.min.css';
 
-import { tablePersistence } from '@podman-desktop/ui-svelte';
 import { router } from 'tinro';
 
-import { parseExtensionListRequest } from '/@/lib/extensions/extension-list';
-import KubernetesRoot from '/@/lib/kube/KubernetesRoot.svelte';
+import FlowDetails from '/@/lib/flows/FlowDetails.svelte';
+import FlowList from '/@/lib/flows/FlowList.svelte';
 import PinActions from '/@/lib/statusbar/PinActions.svelte';
 import { handleNavigation } from '/@/navigation';
 import { kubernetesNoCurrentContext } from '/@/stores/kubernetes-no-current-context';
@@ -30,6 +29,7 @@ import CronJobDetails from './lib/cronjob/CronJobDetails.svelte';
 import CronJobList from './lib/cronjob/CronJobList.svelte';
 import DeploymentDetails from './lib/deployments/DeploymentDetails.svelte';
 import DeploymentsList from './lib/deployments/DeploymentsList.svelte';
+import CommandPalette from './lib/dialogs/CommandPalette.svelte';
 import CustomPick from './lib/dialogs/CustomPick.svelte';
 import MessageBox from './lib/dialogs/MessageBox.svelte';
 import QuickPickInput from './lib/dialogs/QuickPickInput.svelte';
@@ -57,9 +57,6 @@ import KubePodDetails from './lib/kube/pods/PodDetails.svelte';
 import KubePodsList from './lib/kube/pods/PodsList.svelte';
 import PortForwardingList from './lib/kubernetes-port-forward/PortForwardingList.svelte';
 import ManifestDetails from './lib/manifest/ManifestDetails.svelte';
-import CreateNetwork from './lib/network/CreateNetwork.svelte';
-import NetworkDetails from './lib/network/NetworkDetails.svelte';
-import NetworksList from './lib/network/NetworksList.svelte';
 import NodeDetails from './lib/node/NodeDetails.svelte';
 import NodesList from './lib/node/NodesList.svelte';
 import Onboarding from './lib/onboarding/Onboarding.svelte';
@@ -74,7 +71,7 @@ import ServiceDetails from './lib/service/ServiceDetails.svelte';
 import ServicesList from './lib/service/ServicesList.svelte';
 import StatusBar from './lib/statusbar/StatusBar.svelte';
 import IconsStyle from './lib/style/IconsStyle.svelte';
-import { PodmanDesktopStoragePersist } from './lib/table/PodmanDesktopStoragePersist';
+import LegacyTaskManager from './lib/task-manager/LegacyTaskManager.svelte';
 import TaskManager from './lib/task-manager/TaskManager.svelte';
 import ToastHandler from './lib/toast/ToastHandler.svelte';
 import ToastTaskNotifications from './lib/toast/ToastTaskNotifications.svelte';
@@ -87,6 +84,7 @@ import Webview from './lib/webview/Webview.svelte';
 import WelcomePage from './lib/welcome/WelcomePage.svelte';
 import PreferencesNavigation from './PreferencesNavigation.svelte';
 import Route from './Route.svelte';
+import { lastSubmenuPages } from './stores/breadcrumb';
 import { navigationRegistry } from './stores/navigation/navigation-registry';
 import SubmenuNavigation from './SubmenuNavigation.svelte';
 
@@ -120,9 +118,6 @@ window.events?.receive('navigate', (navigationRequest: unknown) => {
 window.events?.receive('kubernetes-navigation', (args: unknown) => {
   navigateTo(args as KubernetesNavigationRequest);
 });
-
-// Initialize table persistence callbacks immediately
-tablePersistence.storage = new PodmanDesktopStoragePersist();
 </script>
 
 <Route path="/*" breadcrumb="Home" let:meta>
@@ -137,6 +132,7 @@ tablePersistence.storage = new PodmanDesktopStoragePersist();
     <div class="flex flex-row w-full h-full overflow-hidden">
       <QuickPickInput />
       <CustomPick />
+      <CommandPalette />
       <MessageBox />
       <AppNavigation meta={meta} exitSettingsCallback={(): void => router.goto(nonSettingsPage)} />
       {#if meta.url.startsWith('/preferences')}
@@ -152,6 +148,7 @@ tablePersistence.storage = new PodmanDesktopStoragePersist();
         class="flex flex-col w-full h-full overflow-hidden"
         class:bg-[var(--pd-content-bg)]={!meta.url.startsWith('/preferences')}
         class:bg-[var(--pd-invert-content-bg)]={meta.url.startsWith('/preferences')}>
+        <LegacyTaskManager />
         <TaskManager />
         <SendFeedback />
         <ToastHandler />
@@ -162,6 +159,19 @@ tablePersistence.storage = new PodmanDesktopStoragePersist();
         <Route path="/chat/*" breadcrumb="Chat">
           <CustomChat />
         </Route>
+
+        <Route path="/flows" breadcrumb="Flows">
+          <FlowList/>
+        </Route>
+
+        <Route path="/flows/:providerId/:connectionName/:flowId" let:meta breadcrumb="Flow Details">
+          <FlowDetails
+            providerId={meta.params.providerId}
+            connectionName={meta.params.connectionName}
+            flowId={meta.params.flowId}
+          />
+        </Route>
+
         <Route path="/containers" breadcrumb="Containers" navigationHint="root">
           <ContainerList searchTerm={meta.query.filter ?? ''} />
         </Route>
@@ -174,7 +184,7 @@ tablePersistence.storage = new PodmanDesktopStoragePersist();
           </Route>
         </Route>
 
-        <Route path="/kube/play" breadcrumb="Podman Kube Play">
+        <Route path="/kube/play" breadcrumb="Play Kubernetes YAML">
           <KubePlayYAML />
         </Route>
         <Route path="/image/run/*" breadcrumb="Run Image">
@@ -191,9 +201,6 @@ tablePersistence.storage = new PodmanDesktopStoragePersist();
         </Route>
         <Route path="/images/:id/:engineId" breadcrumb="Images" let:meta navigationHint="root">
           <ImagesList searchTerm={meta.params.id} imageEngineId={meta.params.engineId} />
-        </Route>
-        <Route path="/networks/create/*" breadcrumb="Create Network">
-          <CreateNetwork />
         </Route>
         <Route
           path="/manifests/:id/:engineId/:base64RepoTag/*"
@@ -263,19 +270,16 @@ tablePersistence.storage = new PodmanDesktopStoragePersist();
         <Route path="/volumes/:name/:engineId/*" breadcrumb="Volume Details" let:meta navigationHint="details">
           <VolumeDetails volumeName={decodeURI(meta.params.name)} engineId={decodeURI(meta.params.engineId)} />
         </Route>
-        <Route path="/networks" breadcrumb="Networks" navigationHint="root">
-          <NetworksList />
-        </Route>
-        <Route path="/networks/:name/:engineId/*" breadcrumb="Network Details" let:meta navigationHint="details">
-          <NetworkDetails networkName={decodeURIComponent(meta.params.name)} engineId={decodeURIComponent(meta.params.engineId)} />
-        </Route>
         {#if $kubernetesNoCurrentContext}
           <Route path="/kubernetes/*" breadcrumb="Kubernetes" navigationHint="root">
             <KubernetesDashboard />
           </Route>
         {:else}
-         <Route path="/kubernetes" breadcrumb="Kubernetes" navigationHint="root">
-            <KubernetesRoot />
+          <!-- Redirect /kubernetes to dashboard if we end up on /kubernetes without a context error
+           we use router.goto to preserve the navbar remembering the navigation location.
+           TODO: Remove after https://github.com/containers/podman-desktop/issues/8825 is implemented -->
+          <Route path="/kubernetes" breadcrumb="Kubernetes" navigationHint="root">
+            {router.goto($lastSubmenuPages['Kubernetes'] === '/kubernetes' ? '/kubernetes/dashboard' : ($lastSubmenuPages['Kubernetes'] ?? '/kubernetes/dashboard'))}
           </Route>
           <Route path="/kubernetes/dashboard" breadcrumb="Dashboard" navigationHint="root">
             <KubernetesDashboard />
@@ -394,12 +398,8 @@ tablePersistence.storage = new PodmanDesktopStoragePersist();
         <Route path="/troubleshooting/*" breadcrumb="Troubleshooting">
           <TroubleshootingPage />
         </Route>
-        <Route path="/extensions" breadcrumb="Extensions" navigationHint="root" let:meta>
-          {@const request = parseExtensionListRequest(meta)}
-          <ExtensionList
-            searchTerm={request.searchTerm}
-            screen={request.screen}
-          />
+        <Route path="/extensions" breadcrumb="Extensions" navigationHint="root">
+          <ExtensionList />
         </Route>
         <Route path="/extensions/details/:id/*" breadcrumb="Extension Details" let:meta navigationHint="details">
           <ExtensionDetails extensionId={meta.params.id} />

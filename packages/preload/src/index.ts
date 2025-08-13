@@ -1,5 +1,5 @@
 /**********************************************************************
- * Copyright (C) 2022-2026 Red Hat, Inc.
+ * Copyright (C) 2022-2025 Red Hat, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -44,8 +44,6 @@ import type {
 import type { UIMessage, UIMessageChunk } from 'ai';
 import { contextBridge, ipcRenderer } from 'electron';
 
-import type { ApiSenderType } from '/@api/api-sender/api-sender-type';
-import type { AuthenticationProviderInfo } from '/@api/authentication/authentication';
 import type { CliToolInfo } from '/@api/cli-tool-info';
 import type { ColorInfo } from '/@api/color-info';
 import type { CommandInfo } from '/@api/command-info';
@@ -57,27 +55,17 @@ import type {
   ContainerInfo,
   ImageLoadOptions,
   ImagesSaveOptions,
-  NetworkCreateOptions,
-  NetworkCreateResult,
   SimpleContainerInfo,
   VolumeCreateOptions,
 } from '/@api/container-info';
 import type { ContainerInspectInfo } from '/@api/container-inspect-info';
 import type { ContainerStatsInfo } from '/@api/container-stats-info';
-import type { ContainerfileInfo } from '/@api/containerfile-info';
-import type { ContextInfo } from '/@api/context/context';
 import type { ContributionInfo } from '/@api/contribution-info';
 import type { MessageBoxOptions, MessageBoxReturnValue } from '/@api/dialog';
-import type { IDisposable } from '/@api/disposable';
 import type { DockerSocketMappingStatusInfo } from '/@api/docker-compatibility-info';
-import type { DocumentationInfo } from '/@api/documentation-info';
-import type { ExploreFeature } from '/@api/explore-feature';
-import type { CatalogExtension } from '/@api/extension-catalog/extensions-catalog-api';
 import type { ExtensionDevelopmentFolderInfo } from '/@api/extension-development-folders-info';
 import type { ExtensionInfo } from '/@api/extension-info';
-import type { FeaturedExtension } from '/@api/featured/featured-api';
-import type { FeedbackMessages, FeedbackProperties, GitHubIssue } from '/@api/feedback';
-import type { ItemInfo } from '/@api/help-menu';
+import type { FeedbackProperties, GitHubIssue } from '/@api/feedback';
 import type { HistoryInfo } from '/@api/history-info';
 import type { IconInfo } from '/@api/icon-info';
 import type { ImageCheckerInfo } from '/@api/image-checker-info';
@@ -86,12 +74,6 @@ import type { ImageFilesystemLayersUI } from '/@api/image-filesystem-layers';
 import type { ImageInfo, PodmanListImagesOptions } from '/@api/image-info';
 import type { ImageInspectInfo } from '/@api/image-inspect-info';
 import type { ImageSearchOptions, ImageSearchResult, ImageTagsListOptions } from '/@api/image-registry';
-import type {
-  GenerateKubeResult,
-  KubernetesGeneratorArgument,
-  KubernetesGeneratorInfo,
-  KubernetesGeneratorSelector,
-} from '/@api/kubernetes/kubernetes-generator-api';
 import type { KubeContext } from '/@api/kubernetes-context';
 import type { ContextHealth } from '/@api/kubernetes-contexts-healths';
 import type { ContextPermission } from '/@api/kubernetes-contexts-permissions';
@@ -100,18 +82,12 @@ import type { ForwardConfig, ForwardOptions } from '/@api/kubernetes-port-forwar
 import type { ResourceCount } from '/@api/kubernetes-resource-count';
 import type { KubernetesContextResources } from '/@api/kubernetes-resources';
 import type { KubernetesTroubleshootingInformation } from '/@api/kubernetes-troubleshooting';
-import type { Guide } from '/@api/learning-center/guide';
-import type { ContainerCreateOptions as PodmanContainerCreateOptions, PlayKubeInfo } from '/@api/libpod/libpod';
-import type { ListOrganizerItem } from '/@api/list-organizer';
 import type { ManifestCreateOptions, ManifestInspectInfo, ManifestPushOptions } from '/@api/manifest-info';
 import type { Menu } from '/@api/menu.js';
-import { NavigationPage } from '/@api/navigation-page';
-import type { NavigationRequest } from '/@api/navigation-request';
 import type { NetworkInspectInfo } from '/@api/network-info';
 import type { NotificationCard, NotificationCardOptions } from '/@api/notification';
 import type { OnboardingInfo, OnboardingStatus } from '/@api/onboarding';
 import type { V1Route } from '/@api/openshift-types';
-import type { PodCreateOptions, PodInfo, PodInspectInfo } from '/@api/pod-info';
 import type {
   PreflightCheckEvent,
   PreflightChecksCallback,
@@ -122,14 +98,33 @@ import type {
 } from '/@api/provider-info';
 import type { ProxyState } from '/@api/proxy';
 import type { PullEvent } from '/@api/pull-event';
-import type { ExtensionBanner, RecommendedRegistry } from '/@api/recommendations/recommendations';
 import type { ReleaseNotesInfo } from '/@api/release-notes-info';
 import type { StatusBarEntryDescriptor } from '/@api/status-bar';
 import type { PinOption } from '/@api/status-bar/pin-option';
-import type { TelemetryMessages } from '/@api/telemetry';
 import type { ViewInfoUI } from '/@api/view-info';
 import type { VolumeInspectInfo, VolumeListInfo } from '/@api/volume-info';
 import type { WebviewInfo } from '/@api/webview-info';
+
+import type { ApiSenderType } from '../../main/src/plugin/api';
+import type { ContextInfo } from '../../main/src/plugin/api/context-info';
+import type { KubernetesGeneratorInfo } from '../../main/src/plugin/api/KubernetesGeneratorInfo';
+import type { PodCreateOptions, PodInfo, PodInspectInfo } from '../../main/src/plugin/api/pod-info';
+import type { AuthenticationProviderInfo } from '../../main/src/plugin/authentication';
+import type {
+  ContainerCreateOptions as PodmanContainerCreateOptions,
+  PlayKubeInfo,
+} from '../../main/src/plugin/dockerode/libpod-dockerode';
+import type { CatalogExtension } from '../../main/src/plugin/extension/catalog/extensions-catalog-api';
+import type { FeaturedExtension } from '../../main/src/plugin/featured/featured-api';
+import type {
+  GenerateKubeResult,
+  KubernetesGeneratorArgument,
+  KubernetesGeneratorSelector,
+} from '../../main/src/plugin/kubernetes/kube-generator-registry';
+import type { Guide } from '../../main/src/plugin/learning-center/learning-center-api';
+import type { ExtensionBanner, RecommendedRegistry } from '../../main/src/plugin/recommendations/recommendations-api';
+import type { IDisposable } from '../../main/src/plugin/types/disposable';
+import { FlowInfo } from '/@api/flow-info';
 
 export type DialogResultCallback = (openDialogReturnValue: Electron.OpenDialogReturnValue) => void;
 export type OpenSaveDialogResultCallback = (result: string | string[] | undefined) => void;
@@ -222,12 +217,6 @@ export function initExposure(): void {
     apiSender.send('install-extension:from-id', extensionId);
   });
 
-  ipcRenderer.on('podman-desktop-protocol:open-experimental-features', () => {
-    apiSender.send('navigate', {
-      page: NavigationPage.EXPERIMENTAL_FEATURES,
-    } as NavigationRequest<NavigationPage.EXPERIMENTAL_FEATURES>);
-  });
-
   contextBridge.exposeInMainWorld('clearTasks', async (): Promise<void> => {
     return ipcInvoke('tasks:clear-all');
   });
@@ -298,6 +287,14 @@ export function initExposure(): void {
     return ipcInvoke('container-provider-registry:listPods');
   });
 
+  contextBridge.exposeInMainWorld('listFlows', async (): Promise<Array<FlowInfo>> => {
+    return ipcInvoke('flows:list');
+  });
+
+  contextBridge.exposeInMainWorld('refreshFlows', async (): Promise<void> => {
+    return ipcInvoke('flows:refresh');
+  });
+
   contextBridge.exposeInMainWorld('reconnectContainerProviders', async (): Promise<PodInfo[]> => {
     return ipcInvoke('container-provider-registry:reconnectContainerProviders');
   });
@@ -305,41 +302,6 @@ export function initExposure(): void {
   contextBridge.exposeInMainWorld('listNetworks', async (): Promise<NetworkInspectInfo[]> => {
     return ipcInvoke('container-provider-registry:listNetworks');
   });
-
-  contextBridge.exposeInMainWorld('removeNetwork', async (engine: string, networkId: string): Promise<void> => {
-    return ipcInvoke('container-provider-registry:removeNetwork', engine, networkId);
-  });
-
-  contextBridge.exposeInMainWorld(
-    'updateNetwork',
-    async (engine: string, networkId: string, addDNSServers: string[], removeDNSServers: string[]): Promise<void> => {
-      return ipcInvoke('container-provider-registry:updateNetwork', engine, networkId, addDNSServers, removeDNSServers);
-    },
-  );
-
-  contextBridge.exposeInMainWorld(
-    'createNetwork',
-    async (
-      providerContainerConnectionInfo: ProviderContainerConnectionInfo,
-      options: NetworkCreateOptions,
-    ): Promise<NetworkCreateResult> => {
-      return ipcInvoke('container-provider-registry:createNetwork', providerContainerConnectionInfo, options);
-    },
-  );
-
-  contextBridge.exposeInMainWorld(
-    'inspectNetwork',
-    async (engine: string, networkId: string): Promise<NetworkInspectInfo> => {
-      return ipcInvoke('container-provider-registry:inspectNetwork', engine, networkId);
-    },
-  );
-
-  contextBridge.exposeInMainWorld(
-    'getNetworkDrivers',
-    async (providerContainerConnectionInfo: ProviderContainerConnectionInfo): Promise<string[]> => {
-      return ipcInvoke('container-provider-registry:getNetworkDrivers', providerContainerConnectionInfo);
-    },
-  );
 
   contextBridge.exposeInMainWorld(
     'replicatePodmanContainer',
@@ -409,21 +371,11 @@ export function initExposure(): void {
       selectedProvider: ProviderContainerConnectionInfo,
       options?: {
         build?: boolean;
-        replace?: boolean;
-        cancellableTokenId?: number;
       },
     ): Promise<PlayKubeInfo> => {
       return ipcInvoke('container-provider-registry:playKube', relativeContainerfilePath, selectedProvider, options);
     },
   );
-
-  contextBridge.exposeInMainWorld('createTempFile', async (content: string): Promise<string> => {
-    return ipcInvoke('temp-file-service:createTempFile', content);
-  });
-
-  contextBridge.exposeInMainWorld('removeTempFile', async (filePath: string): Promise<void> => {
-    return ipcInvoke('temp-file-service:removeTempFile', filePath);
-  });
 
   contextBridge.exposeInMainWorld('stopPod', async (engine: string, podId: string): Promise<void> => {
     return ipcInvoke('container-provider-registry:stopPod', engine, podId);
@@ -583,13 +535,6 @@ export function initExposure(): void {
     return ipcInvoke('container-provider-registry:saveImages', options);
   });
 
-  contextBridge.exposeInMainWorld(
-    'updateImage',
-    async (engineId: string, imageId: string, tag: string): Promise<void> => {
-      return ipcInvoke('container-provider-registry:updateImage', engineId, imageId, tag);
-    },
-  );
-
   contextBridge.exposeInMainWorld('loadImages', async (options: ImageLoadOptions): Promise<void> => {
     return ipcInvoke('container-provider-registry:loadImages', options);
   });
@@ -604,9 +549,6 @@ export function initExposure(): void {
       containerId: string;
       callback: (name: string, data: string) => void;
       cancellableTokenId?: number;
-      timestamps?: boolean;
-      tail?: number;
-      since?: string;
     }): Promise<void> => {
       onDataCallbacksLogsContainerId++;
       onDataCallbacksLogsContainer.set(onDataCallbacksLogsContainerId, logsParams.callback);
@@ -615,9 +557,6 @@ export function initExposure(): void {
         containerId: logsParams.containerId,
         onDataId: onDataCallbacksLogsContainerId,
         cancellableTokenId: logsParams.cancellableTokenId,
-        timestamps: logsParams.timestamps,
-        tail: logsParams.tail,
-        since: logsParams.since,
       });
     },
   );
@@ -1428,7 +1367,6 @@ export function initExposure(): void {
       cancellableTokenId?: number,
       buildargs?: { [key: string]: string },
       taskId?: number,
-      target?: string,
     ): Promise<unknown> => {
       onDataCallbacksBuildImageId++;
       onDataCallbacksBuildImage.set(onDataCallbacksBuildImageId, eventCollect);
@@ -1444,7 +1382,6 @@ export function initExposure(): void {
         cancellableTokenId,
         buildargs,
         taskId,
-        target,
       );
     },
   );
@@ -1510,12 +1447,9 @@ export function initExposure(): void {
     },
   );
 
-  contextBridge.exposeInMainWorld(
-    'selectCliToolVersionToInstall',
-    async (id: string, latest = true): Promise<string> => {
-      return ipcInvoke('cli-tool-registry:selectCliToolVersionToInstall', id, latest);
-    },
-  );
+  contextBridge.exposeInMainWorld('selectCliToolVersionToInstall', async (id: string): Promise<string> => {
+    return ipcInvoke('cli-tool-registry:selectCliToolVersionToInstall', id);
+  });
 
   contextBridge.exposeInMainWorld(
     'installCliTool',
@@ -1602,13 +1536,6 @@ export function initExposure(): void {
       if (callback) {
         callback(providerInfo);
       }
-    },
-  );
-
-  contextBridge.exposeInMainWorld(
-    'createHash',
-    async (input: string, algorithm: string = 'sha512'): Promise<string> => {
-      return ipcInvoke('util:createHash', algorithm, input);
     },
   );
 
@@ -1806,14 +1733,6 @@ export function initExposure(): void {
 
   contextBridge.exposeInMainWorld('refreshCatalogExtensions', async (): Promise<void> => {
     return ipcInvoke('catalog:refreshExtensions');
-  });
-
-  contextBridge.exposeInMainWorld('getDocumentationItems', async (): Promise<DocumentationInfo[]> => {
-    return ipcInvoke('documentation:getItems');
-  });
-
-  contextBridge.exposeInMainWorld('refreshDocumentationItems', async (): Promise<void> => {
-    return ipcInvoke('documentation:refresh');
   });
 
   contextBridge.exposeInMainWorld('getCommandPaletteCommands', async (): Promise<CommandInfo[]> => {
@@ -2561,14 +2480,6 @@ export function initExposure(): void {
     return ipcInvoke('feedback:GitHubPreview', feedback);
   });
 
-  contextBridge.exposeInMainWorld('getFeedbackMessages', async (): Promise<FeedbackMessages> => {
-    return ipcInvoke('feedback:getFeedbackMessages');
-  });
-
-  contextBridge.exposeInMainWorld('getTelemetryMessages', async (): Promise<TelemetryMessages> => {
-    return ipcInvoke('telemetry:getTelemetryMessages');
-  });
-
   contextBridge.exposeInMainWorld('telemetryTrack', async (event: string, eventProperties?: unknown): Promise<void> => {
     return ipcInvoke('telemetry:track', event, eventProperties);
   });
@@ -2648,14 +2559,6 @@ export function initExposure(): void {
     return ipcInvoke('webviewRegistry:makeDefaultWebviewVisible', webviewId);
   });
 
-  contextBridge.exposeInMainWorld('registerWebviewDevTools', async (webcontentId: number): Promise<void> => {
-    return ipcInvoke('webview:devtools:register', webcontentId);
-  });
-
-  contextBridge.exposeInMainWorld('cleanupWebviewDevTools', async (webcontentId: number): Promise<void> => {
-    return ipcInvoke('webview:devtools:cleanup', webcontentId);
-  });
-
   contextBridge.exposeInMainWorld(
     'fetchExtensionViewsContributions',
     async (extensionId: string): Promise<ViewInfoUI[]> => {
@@ -2731,23 +2634,6 @@ export function initExposure(): void {
     },
   );
 
-  // Layout Registry functions
-  contextBridge.exposeInMainWorld(
-    'loadListConfig',
-    async (kind: string, availableColumns: string[]): Promise<ListOrganizerItem[]> => {
-      return ipcInvoke('list-organizer-registry:loadListConfig', kind, availableColumns);
-    },
-  );
-  contextBridge.exposeInMainWorld('saveListConfig', async (kind: string, items: ListOrganizerItem[]): Promise<void> => {
-    return ipcInvoke('list-organizer-registry:saveListConfig', kind, items);
-  });
-  contextBridge.exposeInMainWorld(
-    'resetListConfig',
-    async (kind: string, availableColumns: string[]): Promise<ListOrganizerItem[]> => {
-      return ipcInvoke('list-organizer-registry:resetListConfig', kind, availableColumns);
-    },
-  );
-
   contextBridge.exposeInMainWorld('getImageFilesProviders', async (): Promise<ImageFilesInfo[]> => {
     return ipcInvoke('image-files:getProviders');
   });
@@ -2765,22 +2651,6 @@ export function initExposure(): void {
 
   contextBridge.exposeInMainWorld('listGuides', async (): Promise<Guide[]> => {
     return ipcInvoke('learning-center:listGuides');
-  });
-
-  contextBridge.exposeInMainWorld('listFeatures', async (): Promise<ExploreFeature[]> => {
-    return ipcInvoke('explore-features:listFeatures');
-  });
-
-  contextBridge.exposeInMainWorld('closeFeatureCard', async (featureId: string): Promise<void> => {
-    return ipcInvoke('explore-features:closeFeatureCard', featureId);
-  });
-
-  contextBridge.exposeInMainWorld('containerfileGetInfo', async (path: string): Promise<ContainerfileInfo> => {
-    return ipcInvoke('containerfile:getInfo', path);
-  });
-
-  contextBridge.exposeInMainWorld('helpMenuGetItems', async (): Promise<ItemInfo[]> => {
-    return ipcInvoke('help-menu:getItems');
   });
 
   contextBridge.exposeInMainWorld('contextCollectAllValues', async (): Promise<Record<string, unknown>> => {
