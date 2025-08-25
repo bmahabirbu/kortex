@@ -25,7 +25,7 @@ import { router } from 'tinro';
 import { beforeEach, expect, test, vi } from 'vitest';
 
 import { providerInfos } from '/@/stores/providers';
-import type { ProviderContainerConnectionInfo, ProviderInfo } from '/@api/provider-info';
+import { ProviderConnectionType, type ProviderContainerConnectionInfo, type ProviderInfo } from '/@api/provider-info';
 
 import ImportContainersImages from './ImportContainersImages.svelte';
 
@@ -39,6 +39,7 @@ const pInfo: ProviderContainerConnectionInfo = {
     socketPath: '',
   },
   type: 'podman',
+  connectionType: ProviderConnectionType.CONTAINER,
 };
 const providerInfo = {
   id: 'test',

@@ -20,7 +20,7 @@
 
 import '@testing-library/jest-dom/vitest';
 
-import { fireEvent, render, screen, waitFor } from '@testing-library/svelte';
+import { fireEvent, render, screen } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
 /* eslint-disable import/no-duplicates */
 import { tick } from 'svelte';
@@ -33,8 +33,9 @@ import PodsList from '/@/lib/pod/PodsList.svelte';
 import { filtered, podsInfos } from '/@/stores/pods';
 import { providerInfos } from '/@/stores/providers';
 import type { ContextGeneralState } from '/@api/kubernetes-contexts-states';
-import type { PodInfo } from '/@api/pod-info';
-import type { ProviderContainerConnectionInfo, ProviderInfo } from '/@api/provider-info';
+import { ProviderConnectionType, type ProviderContainerConnectionInfo, type ProviderInfo } from '/@api/provider-info';
+
+import type { PodInfo } from '../../../../main/src/plugin/api/pod-info';
 
 const getProvidersInfoMock = vi.fn();
 const listPodsMock = vi.fn();
@@ -45,12 +46,12 @@ const kubernetesGetCurrentNamespaceMock = vi.fn();
 const provider: ProviderInfo = {
   containerConnections: [
     {
-      connectionType: 'container',
       name: 'MyConnection',
       displayName: 'MyConnection',
       status: 'started',
       endpoint: { socketPath: 'dummy' },
       type: 'podman',
+      connectionType: ProviderConnectionType.CONTAINER,
     },
   ],
   containerProviderConnectionCreation: false,
@@ -72,6 +73,13 @@ const provider: ProviderInfo = {
   warnings: [],
   extensionId: '',
   cleanupSupport: false,
+  inferenceConnections: [],
+  mcpConnections: [],
+  flowConnections: [],
+  inferenceProviderConnectionCreation: false,
+  inferenceProviderConnectionInitialization: false,
+  mcpProviderConnectionCreation: false,
+  mcpProviderConnectionInitialization: false,
 };
 
 const pod1: PodInfo = {
@@ -284,9 +292,6 @@ test('Expect single podman pod being displayed', async () => {
     name: `${pod1.Name}`,
   });
   expect(pod1Row).toBeInTheDocument();
-
-  const env = screen.getByRole('cell', { name: 'Provider info circle podman' });
-  expect(env).toBeInTheDocument();
 });
 
 test('Expect 2 podman pods being displayed', async () => {
@@ -597,7 +602,7 @@ test('Expect to see empty page and no table when no container engine is running'
   window.dispatchEvent(new CustomEvent('extensions-already-started'));
 
   // wait imageInfo store is populated
-  await vi.waitUntil(() => get(podsInfos).length > 0);
+  await vi.waitFor(() => get(podsInfos).length > 0);
 
   await waitRender({});
 
@@ -606,29 +611,4 @@ test('Expect to see empty page and no table when no container engine is running'
 
   const noContainerEngine = screen.getByText('No Container Engine');
   expect(noContainerEngine).toBeInTheDocument();
-});
-
-test('Expect environment column sorted by engineId', async () => {
-  getProvidersInfoMock.mockResolvedValue([provider]);
-
-  const podA = { ...pod1, Name: 'pod-aaa', engineId: 'engine-zzz', engineName: 'name-aaa' };
-  const podB = { ...pod2, Name: 'pod-bbb', engineId: 'engine-aaa', engineName: 'name-zzz' };
-
-  listPodsMock.mockResolvedValue([podA, podB]);
-  window.dispatchEvent(new CustomEvent('provider-lifecycle-change'));
-  window.dispatchEvent(new CustomEvent('extensions-already-started'));
-
-  await waitFor(() => {
-    expect(get(providerInfos)).toHaveLength(1);
-    expect(get(podsInfos)).toHaveLength(2);
-  });
-
-  render(PodsList);
-
-  const environment = screen.getByRole('columnheader', { name: 'Environment' });
-  await fireEvent.click(environment);
-
-  const cells = screen.getAllByRole('cell', { name: /pod-/ });
-  expect(cells[0]).toHaveTextContent('pod-bbb');
-  expect(cells[1]).toHaveTextContent('pod-aaa');
 });

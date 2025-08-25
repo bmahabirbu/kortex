@@ -28,7 +28,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 import { providerInfos } from '/@/stores/providers';
 import type { ImageSearchResult } from '/@api/image-registry';
-import type { ProviderContainerConnectionInfo, ProviderInfo } from '/@api/provider-info';
+import { ProviderConnectionType, type ProviderContainerConnectionInfo, type ProviderInfo } from '/@api/provider-info';
 
 import CreateContainerFromExistingImage from './CreateContainerFromExistingImage.svelte';
 
@@ -92,6 +92,7 @@ const pStatus: ProviderStatus = 'started';
 const pInfo: ProviderContainerConnectionInfo = {
   connectionType: 'container',
   name: 'test',
+  connectionType: ProviderConnectionType.CONTAINER,
   displayName: 'test',
   status: 'started',
   endpoint: {
