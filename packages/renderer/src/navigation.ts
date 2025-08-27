@@ -46,9 +46,7 @@ export const handleNavigation = (request: InferredNavigationRequest<NavigationPa
       router.goto('/flows');
       break;
     case NavigationPage.FLOW_CREATE:
-      router.goto(
-        `/flows/create`,
-      );
+      router.goto(`/flows/create`);
       break;
     case NavigationPage.FLOW_DETAILS:
       router.goto(
@@ -66,9 +64,6 @@ export const handleNavigation = (request: InferredNavigationRequest<NavigationPa
       break;
     case NavigationPage.EXISTING_IMAGE_CREATE_CONTAINER:
       router.goto(`/images/existing-image-create-container`);
-      break;
-    case NavigationPage.CONTAINER_SUMMARY:
-      router.goto(`/containers/${request.parameters.id}/summary`);
       break;
     case NavigationPage.CONTAINER_LOGS:
       router.goto(`/containers/${request.parameters.id}/logs`);
@@ -110,9 +105,6 @@ export const handleNavigation = (request: InferredNavigationRequest<NavigationPa
     case NavigationPage.PODMAN_PODS:
       router.goto(`/pods`);
       break;
-    case NavigationPage.PODMAN_POD_SUMMARY:
-      router.goto(`/pods/podman/${request.parameters.name}/${request.parameters.engineId}/summary`);
-      break;
     case NavigationPage.PODMAN_POD:
       router.goto(`/pods/podman/${request.parameters.name}/${request.parameters.engineId}/`);
       break;
@@ -120,7 +112,7 @@ export const handleNavigation = (request: InferredNavigationRequest<NavigationPa
       router.goto('/volumes');
       break;
     case NavigationPage.VOLUME:
-      router.goto(`/volumes/${request.parameters.name}/${request.parameters.engineId}/summary`);
+      router.goto(`/volumes/${request.parameters.name}/`);
       break;
     case NavigationPage.CONTRIBUTION:
       router.goto(`/contribs/${request.parameters.name}/`);
@@ -149,23 +141,8 @@ export const handleNavigation = (request: InferredNavigationRequest<NavigationPa
     case NavigationPage.EDIT_CONTAINER_CONNECTION:
       router.goto(`/preferences/container-connection/edit/${request.parameters.provider}/${request.parameters.name}`);
       break;
-    case NavigationPage.EXPERIMENTAL_FEATURES:
-      router.goto('/preferences/experimental');
-      break;
-    case NavigationPage.CREATE_PROVIDER_CONNECTION:
-      router.goto(`/preferences/provider/${request.parameters.provider}`);
-      break;
-    case NavigationPage.NETWORKS:
-      router.goto('/networks');
-      break;
-    case NavigationPage.NETWORK:
-      router.goto(`/networks/${request.parameters.name}/${request.parameters.engineId}/summary`);
-      break;
-    case NavigationPage.NETWORK_CREATE:
-      router.goto('/networks/create');
-      break;
-    case NavigationPage.EXTENSIONS_CATALOG:
-      router.goto(`/extensions?screen=catalog&searchTerm=${encodeURIComponent(request.parameters.searchTerm ?? '')}`);
+    case NavigationPage.MCP_DETAILS:
+      router.goto(`/mcps/${request.parameters.id}/summary`);
       break;
   }
 };
