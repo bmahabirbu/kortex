@@ -47,10 +47,10 @@ UI guidelines -->
 <script lang="ts">
 import { micromark } from 'micromark';
 import { directive, directiveHtml } from 'micromark-extension-directive';
+import { gfmAutolinkLiteral, gfmAutolinkLiteralHtml } from 'micromark-extension-gfm-autolink-literal';
 import { onDestroy, onMount } from 'svelte';
 
 import { button } from './micromark-button-directive';
-import { image } from './micromark-image-directive';
 import { link } from './micromark-link-directive';
 import { createListener } from './micromark-listener-handler';
 import { warnings } from './micromark-warnings-directive';
@@ -77,16 +77,10 @@ const eventListeners: EventListener[] = [];
 // Render the markdown or the html+micromark markdown reactively
 $: markdown
   ? (html = micromark(markdown, {
-      extensions: [directive()],
-      htmlExtensions: [directiveHtml({ button, image, link, warnings })],
+      extensions: [gfmAutolinkLiteral(), directive()],
+      htmlExtensions: [gfmAutolinkLiteralHtml(), directiveHtml({ button, link, warnings })],
     }))
   : undefined;
-
-function decode(htmlString: string): string {
-  let textArea = document.createElement('textarea');
-  textArea.innerHTML = htmlString;
-  return textArea.value;
-}
 
 onMount(() => {
   if (markdown) {
@@ -95,14 +89,14 @@ onMount(() => {
 
   // Provide micromark + extensions
   html = micromark(text, {
-    extensions: [directive()],
-    htmlExtensions: [directiveHtml({ button, image, link, warnings })],
+    extensions: [gfmAutolinkLiteral(), directive()],
+    htmlExtensions: [gfmAutolinkLiteralHtml(), directiveHtml({ button, link, warnings })],
   });
 
   // remove href values in each anchor using # for links
   // and set the attribute data-pd-jump-in-page
   const parser = new DOMParser();
-  const doc = parser.parseFromString(decode(html), 'text/html');
+  const doc = parser.parseFromString(html, 'text/html');
   const links = doc.querySelectorAll('a');
   links.forEach(link => {
     const currentHref = link.getAttribute('href');
@@ -119,10 +113,6 @@ onMount(() => {
 
       // add a class for cursor
       link.classList.add('cursor-pointer');
-    } else if (link.getAttribute('href')?.startsWith('podman-desktop://')) {
-      let internalLink = '';
-      internalLink = link.getAttribute('href')?.replace('podman-desktop://', '/') ?? '';
-      link.setAttribute('href', internalLink);
     }
   });
 
