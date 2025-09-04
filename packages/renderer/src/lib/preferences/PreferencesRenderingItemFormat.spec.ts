@@ -351,16 +351,11 @@ test('Expect tooltip text shows info when input is less than minimum', async () 
     maximum: 34,
   };
   await awaitRender(record, {});
-
   const input = screen.getByLabelText('record-description');
   await userEvent.click(input);
   await userEvent.clear(input);
   await userEvent.keyboard('0');
-
-  const tooltipTrigger = screen.getByTestId('tooltip-trigger');
-  await userEvent.hover(tooltipTrigger);
-
-  const tooltip = await screen.findByLabelText('tooltip');
+  const tooltip = screen.getByLabelText('tooltip');
   expect(tooltip).toBeInTheDocument();
   expect(tooltip.textContent).toBe('The value cannot be less than 1');
 });
@@ -376,16 +371,11 @@ test('Expect tooltip text shows info when input is higher than maximum', async (
     maximum: 34,
   };
   await awaitRender(record, {});
-
   const input = screen.getByLabelText('record-description');
   await userEvent.click(input);
   await userEvent.clear(input);
   await userEvent.keyboard('40');
-
-  const tooltipTrigger = screen.getByTestId('tooltip-trigger');
-  await userEvent.hover(tooltipTrigger);
-
-  const tooltip = await screen.findByLabelText('tooltip');
+  const tooltip = screen.getByLabelText('tooltip');
   expect(tooltip).toBeInTheDocument();
   expect(tooltip.textContent).toBe('The value cannot be greater than 34');
 });
@@ -488,7 +478,7 @@ test('Expect boolean record to be updated from checked to not checked', async ()
 });
 
 test('Expect a password input when record is type string and format is password', async () => {
-  const record: IConfigurationPropertyRecordedSchema & { description: string } = {
+  const record: IConfigurationPropertyRecordedSchema = {
     id: 'record',
     title: 'record',
     parentId: 'parent.record',
@@ -497,7 +487,7 @@ test('Expect a password input when record is type string and format is password'
     type: 'string',
   };
   await awaitRender(record, {});
-  const passwordInput = screen.getByLabelText(record.description);
+  const passwordInput = screen.getByLabelText('password input-standard-record');
   expect(passwordInput).toBeInTheDocument();
   expect(passwordInput).toBeInstanceOf(HTMLInputElement);
 

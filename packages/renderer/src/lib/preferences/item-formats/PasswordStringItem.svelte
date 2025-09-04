@@ -20,11 +20,11 @@ function onInput(event: Event): void {
 </script>
 
 <PasswordInput
-  oninput={onInput}
+  on:input={onInput}
   class="grow"
   name={record.id}
   placeholder={record.placeholder}
-  password={value}
+  bind:value={value}
   readonly={!!record.readonly}
   id="input-standard-{record.id}"
   aria-invalid={invalidEntry}
