@@ -74,7 +74,6 @@ import { parseAllDocuments } from 'yaml';
 
 import type { KubernetesPortForwardService } from '/@/plugin/kubernetes/kubernetes-port-forward-service.js';
 import { KubernetesPortForwardServiceProvider } from '/@/plugin/kubernetes/kubernetes-port-forward-service.js';
-import { ApiSenderType } from '/@api/api-sender/api-sender-type.js';
 import { type IConfigurationNode, IConfigurationRegistry } from '/@api/configuration/models.js';
 import type { KubeContext } from '/@api/kubernetes-context.js';
 import type { ContextHealth } from '/@api/kubernetes-contexts-healths.js';
@@ -86,6 +85,7 @@ import type { KubernetesContextResources } from '/@api/kubernetes-resources.js';
 import type { KubernetesTroubleshootingInformation } from '/@api/kubernetes-troubleshooting.js';
 import type { V1Route } from '/@api/openshift-types.js';
 
+import { ApiSenderType } from '../api.js';
 import { Emitter } from '../events/emitter.js';
 import { ExperimentalConfigurationManager } from '../experimental-configuration-manager.js';
 import { FilesystemMonitoring } from '../filesystem-monitoring.js';
@@ -241,8 +241,11 @@ export class KubernetesClient {
         },
         ['kubernetes.statesExperimental']: {
           description: 'Use new version of Kubernetes contexts monitoring (needs restart)',
-          type: 'boolean',
+          type: 'object',
           default: true,
+          experimental: {
+            githubDiscussionLink: 'https://github.com/podman-desktop/podman-desktop/discussions/11424',
+          },
         },
       },
     };
@@ -266,8 +269,6 @@ export class KubernetesClient {
     const statesExperimental = this.experimentalConfigurationManager.isExperimentalConfigurationEnabled(
       'kubernetes.statesExperimental',
     );
-    this.telemetry.track('kubernetesExperimentalMode', { enabled: statesExperimental });
-
     if (statesExperimental) {
       const manager = new ContextsManagerExperimental();
       this.contextsState = manager;
@@ -934,6 +935,7 @@ export class KubernetesClient {
       }
       return res;
     } catch (error) {
+      this.telemetry.track('kubernetesReadNamespacedPod.error', error);
       throw this.wrapK8sClientError(error);
     }
   }
