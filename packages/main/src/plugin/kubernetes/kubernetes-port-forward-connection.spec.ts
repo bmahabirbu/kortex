@@ -18,20 +18,10 @@
 
 import net from 'node:net';
 
-import {
-  AppsV1Api,
-  CoreV1Api,
-  KubeConfig,
-  PortForward,
-  type V1Deployment,
-  type V1Pod,
-  type V1Service,
-} from '@kubernetes/client-node';
-import type { ApiType } from '@kubernetes/client-node/dist/config.js';
-import type { V1PodList } from '@kubernetes/client-node/dist/gen/models/V1PodList.js';
-import type { WebSocket } from 'isomorphic-ws';
+import { AppsV1Api, CoreV1Api, type V1Deployment, type V1Pod, type V1Service } from '@kubernetes/client-node';
 import { afterEach, beforeEach, describe, expect, type MockedFunction, test, vi } from 'vitest';
 
+import type { ApiSenderType } from '/@/plugin/api.js';
 import type { ConfigurationRegistry } from '/@/plugin/configuration-registry.js';
 import { FilesystemMonitoring } from '/@/plugin/filesystem-monitoring.js';
 import { KubernetesClient } from '/@/plugin/kubernetes/kubernetes-client.js';
@@ -40,31 +30,42 @@ import {
   PortForwardConnectionService,
 } from '/@/plugin/kubernetes/kubernetes-port-forward-connection.js';
 import type { Telemetry } from '/@/plugin/telemetry/telemetry.js';
-import type { ApiSenderType } from '/@api/api-sender/api-sender-type.js';
-import type { IDisposable } from '/@api/disposable.js';
+import { type IDisposable } from '/@/plugin/types/disposable.js';
 import { type ForwardConfig, type PortMapping, WorkloadKind } from '/@api/kubernetes-port-forward-model.js';
 
-import type { ExperimentalConfigurationManager } from '../experimental-configuration-manager.js';
-
-const apiSender: ApiSenderType = {} as unknown as ApiSenderType;
-const configurationRegistry: ConfigurationRegistry = {} as unknown as ConfigurationRegistry;
-const fileSystemMonitoring: FilesystemMonitoring = new FilesystemMonitoring();
-const telemetry: Telemetry = {} as unknown as Telemetry;
-const experimentalConfigurationManager: ExperimentalConfigurationManager = {
-  isExperimentalConfigurationEnabled: vi.fn(),
-} as unknown as ExperimentalConfigurationManager;
+const mockKubeConfig = {
+  makeApiClient: vi.fn(),
+};
 
 const mockCoreV1Api = {
   readNamespacedPod: vi.fn(),
   listNamespacedPod: vi.fn(),
   readNamespacedService: vi.fn(),
-} as unknown as CoreV1Api;
+};
 
 const mockAppsV1Api = {
   readNamespacedDeployment: vi.fn(),
-} as unknown as AppsV1Api;
+};
 
-vi.mock(import('@kubernetes/client-node'));
+const mockPortForward = {
+  portForward: vi.fn().mockResolvedValue(undefined),
+};
+
+const apiSender: ApiSenderType = {} as unknown as ApiSenderType;
+const configurationRegistry: ConfigurationRegistry = {} as unknown as ConfigurationRegistry;
+const fileSystemMonitoring: FilesystemMonitoring = new FilesystemMonitoring();
+const telemetry: Telemetry = {} as unknown as Telemetry;
+vi.mock('@kubernetes/client-node', async () => {
+  // eslint-disable-next-line @typescript-eslint/consistent-type-imports
+  const actual = await vi.importActual<typeof import('@kubernetes/client-node')>('@kubernetes/client-node');
+  return {
+    ...actual,
+    KubeConfig: vi.fn(() => mockKubeConfig),
+    CoreV1Api: vi.fn(() => mockCoreV1Api),
+    AppsV1Api: vi.fn(() => mockAppsV1Api),
+    PortForward: vi.fn(() => mockPortForward),
+  };
+});
 
 vi.mock('node:net', async () => {
   // eslint-disable-next-line @typescript-eslint/consistent-type-imports
@@ -159,34 +160,22 @@ class TestablePortForwardConnectionService extends PortForwardConnectionService 
   }
 }
 
-beforeEach(() => {
-  vi.resetAllMocks();
-
-  vi.mocked(PortForward.prototype.portForward).mockResolvedValue({} as unknown as WebSocket);
-});
-
 describe('PortForwardConnectionService', () => {
   let service: TestablePortForwardConnectionService;
 
   beforeEach(() => {
     service = new TestablePortForwardConnectionService(
-      new KubernetesClient(
-        apiSender,
-        configurationRegistry,
-        fileSystemMonitoring,
-        telemetry,
-        experimentalConfigurationManager,
-      ),
+      new KubernetesClient(apiSender, configurationRegistry, fileSystemMonitoring, telemetry),
     );
     global.fetch = vi.fn();
-    vi.mocked(KubeConfig.prototype.makeApiClient).mockImplementation(api => {
+    mockKubeConfig.makeApiClient.mockImplementation(api => {
       if (api === CoreV1Api) {
         return mockCoreV1Api;
       }
       if (api === AppsV1Api) {
         return mockAppsV1Api;
       }
-      return {} as unknown as ApiType;
+      return undefined;
     });
   });
 
@@ -250,19 +239,13 @@ describe('PortForwardConnectionService', () => {
     );
 
     service = new TestablePortForwardConnectionService(
-      new KubernetesClient(
-        apiSender,
-        configurationRegistry,
-        fileSystemMonitoring,
-        telemetry,
-        experimentalConfigurationManager,
-      ),
+      new KubernetesClient(apiSender, configurationRegistry, fileSystemMonitoring, telemetry),
     );
 
     const createdServer = service.createServer(forwardSetup as never);
 
     expect(net.createServer).toHaveBeenCalled();
-    expect(PortForward.prototype.portForward).toHaveBeenCalledWith(
+    expect(mockPortForward.portForward).toHaveBeenCalledWith(
       forwardSetup.namespace,
       forwardSetup.name,
       [forwardSetup.forward.remotePort],
@@ -273,23 +256,20 @@ describe('PortForwardConnectionService', () => {
       3,
     );
 
-    const listeningListener: () => void = vi.fn();
-    createdServer.listen(forwardSetup.forward.localPort, 'localhost', listeningListener);
+    createdServer.listen(forwardSetup.forward.localPort, 'localhost', vi.fn());
 
     expect(server.listen).toHaveBeenCalledWith(forwardSetup.forward.localPort, 'localhost', expect.any(Function));
   });
 
   test('should retrieve a pod resource', async () => {
-    vi.mocked(mockCoreV1Api.readNamespacedPod).mockResolvedValue({
-      metadata: { name: 'test-pod', namespace: 'default' },
-    });
+    mockCoreV1Api.readNamespacedPod.mockResolvedValue({ metadata: { name: 'test-pod', namespace: 'default' } });
 
     const pod = await service.getPod('test-pod', 'default');
     expect(pod.metadata?.name).toBe('test-pod');
   });
 
   test('should retrieve a deployment resource', async () => {
-    vi.mocked(mockAppsV1Api.readNamespacedDeployment).mockResolvedValue({
+    mockAppsV1Api.readNamespacedDeployment.mockResolvedValue({
       metadata: { name: 'test-deployment', namespace: 'default' },
     });
 
@@ -298,9 +278,7 @@ describe('PortForwardConnectionService', () => {
   });
 
   test('should retrieve a service resource', async () => {
-    vi.mocked(mockCoreV1Api.readNamespacedService).mockResolvedValue({
-      metadata: { name: 'test-service', namespace: 'default' },
-    });
+    mockCoreV1Api.readNamespacedService.mockResolvedValue({ metadata: { name: 'test-service', namespace: 'default' } });
 
     const serviceResource = await service.getService('test-service', 'default');
     expect(serviceResource.metadata?.name).toBe('test-service');
@@ -324,7 +302,7 @@ describe('PortForwardConnectionService', () => {
 
   test('should get forwarding setup from deployment', async () => {
     const podList = { items: [{ metadata: { name: 'test-pod' } }] };
-    vi.mocked(mockCoreV1Api.listNamespacedPod).mockResolvedValue(podList);
+    mockCoreV1Api.listNamespacedPod.mockResolvedValue(podList);
 
     const deployment: V1Deployment = {
       apiVersion: 'apps/v1',
@@ -364,12 +342,12 @@ describe('PortForwardConnectionService', () => {
   });
 
   test('should get forwarding setup from service', async () => {
-    const podList: V1PodList = {
+    const podList = {
       items: [
         { metadata: { name: 'test-pod' }, spec: { containers: [{ ports: [{ name: 'http', containerPort: 80 }] }] } },
       ],
-    } as unknown as V1PodList;
-    vi.mocked(mockCoreV1Api.listNamespacedPod).mockResolvedValue(podList);
+    };
+    mockCoreV1Api.listNamespacedPod.mockResolvedValue(podList);
 
     const _service: V1Service = {
       apiVersion: 'v1',
@@ -455,7 +433,7 @@ describe('PortForwardConnectionService', () => {
 
     const forward = { localPort: 3000, remotePort: 80 };
 
-    vi.mocked(mockCoreV1Api.listNamespacedPod).mockResolvedValueOnce({
+    mockCoreV1Api.listNamespacedPod.mockResolvedValueOnce({
       items: [pod],
     });
 
@@ -509,7 +487,7 @@ describe('PortForwardConnectionService', () => {
   describe('getWorkloadResource', () => {
     test('should retrieve a Pod resource', async () => {
       const pod = { metadata: { name: 'test-pod', namespace: 'default' } };
-      vi.mocked(mockCoreV1Api.readNamespacedPod).mockResolvedValue(pod);
+      mockCoreV1Api.readNamespacedPod.mockResolvedValue(pod);
 
       const resource = await service.getWorkloadResource(WorkloadKind.POD, 'test-pod', 'default');
       expect(resource).toEqual(pod);
@@ -517,7 +495,7 @@ describe('PortForwardConnectionService', () => {
 
     test('should retrieve a Deployment resource', async () => {
       const deployment = { metadata: { name: 'test-deployment', namespace: 'default' } };
-      vi.mocked(mockAppsV1Api.readNamespacedDeployment).mockResolvedValue(deployment);
+      mockAppsV1Api.readNamespacedDeployment.mockResolvedValue(deployment);
 
       const resource = await service.getWorkloadResource(WorkloadKind.DEPLOYMENT, 'test-deployment', 'default');
       expect(resource).toEqual(deployment);
@@ -525,7 +503,7 @@ describe('PortForwardConnectionService', () => {
 
     test('should retrieve a Service resource', async () => {
       const _service = { metadata: { name: 'test-service', namespace: 'default' } };
-      vi.mocked(mockCoreV1Api.readNamespacedService).mockResolvedValue(_service);
+      mockCoreV1Api.readNamespacedService.mockResolvedValue(_service);
 
       const resource = await service.getWorkloadResource(WorkloadKind.SERVICE, 'test-service', 'default');
       expect(resource).toEqual(_service);
@@ -581,7 +559,7 @@ describe('PortForwardConnectionService', () => {
       };
 
       const podList = { items: [{ metadata: { name: 'test-pod' } }] };
-      vi.mocked(mockCoreV1Api.listNamespacedPod).mockResolvedValue(podList);
+      mockCoreV1Api.listNamespacedPod.mockResolvedValue(podList);
 
       const forward = { localPort: 3000, remotePort: 80 };
 
@@ -612,12 +590,12 @@ describe('PortForwardConnectionService', () => {
         },
       };
 
-      const podList: V1PodList = {
+      const podList = {
         items: [
           { metadata: { name: 'test-pod' }, spec: { containers: [{ ports: [{ name: 'http', containerPort: 80 }] }] } },
         ],
-      } as unknown as V1PodList;
-      vi.mocked(mockCoreV1Api.listNamespacedPod).mockResolvedValue(podList);
+      };
+      mockCoreV1Api.listNamespacedPod.mockResolvedValue(podList);
 
       const forward = { localPort: 3000, remotePort: 80 };
 
@@ -658,7 +636,7 @@ describe('PortForwardConnectionService', () => {
         metadata: { name: 'test-pod', namespace: 'default' },
       };
 
-      vi.mocked(mockCoreV1Api.readNamespacedPod).mockResolvedValueOnce(pod);
+      mockCoreV1Api.readNamespacedPod.mockResolvedValueOnce(pod);
 
       const disposable1 = new MockDisposable();
 
@@ -690,7 +668,7 @@ describe('PortForwardConnectionService', () => {
         metadata: { name: 'test-pod', namespace: 'default' },
       };
 
-      vi.mocked(mockCoreV1Api.readNamespacedPod).mockResolvedValueOnce(pod);
+      mockCoreV1Api.readNamespacedPod.mockResolvedValueOnce(pod);
 
       const disposable1 = new MockDisposable();
 
@@ -717,7 +695,7 @@ describe('PortForwardConnectionService', () => {
         metadata: { name: 'test-pod', namespace: 'default' },
       };
 
-      vi.mocked(mockCoreV1Api.readNamespacedPod).mockResolvedValueOnce(pod);
+      mockCoreV1Api.readNamespacedPod.mockResolvedValueOnce(pod);
 
       vi.spyOn(service, 'performForward').mockRejectedValueOnce(new Error('Failed to forward port'));
 
