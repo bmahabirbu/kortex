@@ -37,17 +37,19 @@ import type {
   ProviderLifecycle,
   ProviderLinks,
   ProviderOptions,
+  ProviderScheduler,
   ProviderStatus,
   ProviderUpdate,
   VmProviderConnection,
   VmProviderConnectionFactory,
 } from '@kortex-app/api';
 
-import type { IDisposable } from '/@api/disposable.js';
+import type { SchedulerRegistry } from '/@/plugin/scheduler/scheduler-registry.js';
 
 import type { ContainerProviderRegistry } from './container-registry.js';
 import { Emitter } from './events/emitter.js';
 import type { ProviderRegistry } from './provider-registry.js';
+import type { IDisposable } from './types/disposable.js';
 import { Disposable } from './types/disposable.js';
 
 export class ProviderImpl implements Provider, IDisposable {
@@ -93,6 +95,7 @@ export class ProviderImpl implements Provider, IDisposable {
     private providerOptions: ProviderOptions,
     private providerRegistry: ProviderRegistry,
     private containerRegistry: ContainerProviderRegistry,
+    private schedulerRegistry: SchedulerRegistry,
   ) {
     this.containerProviderConnectionsStatuses = new Map();
     this.containerProviderConnections = new Set();
@@ -235,11 +238,9 @@ export class ProviderImpl implements Provider, IDisposable {
   ): Disposable {
     this._containerProviderConnectionFactory = containerProviderConnectionFactory;
     this._connectionAuditor = connectionAuditor;
-    this.providerRegistry.onDidSetConnectionFactoryCallback(this, containerProviderConnectionFactory, 'container');
     return Disposable.create(() => {
       this._containerProviderConnectionFactory = undefined;
       this._connectionAuditor = undefined;
-      this.providerRegistry.onDidUnsetConnectionFactoryCallback(this, 'container');
     });
   }
 
@@ -249,11 +250,9 @@ export class ProviderImpl implements Provider, IDisposable {
   ): Disposable {
     this._kubernetesProviderConnectionFactory = kubernetesProviderConnectionFactory;
     this._connectionAuditor = connectionAuditor;
-    this.providerRegistry.onDidSetConnectionFactoryCallback(this, kubernetesProviderConnectionFactory, 'kubernetes');
     return Disposable.create(() => {
       this._kubernetesProviderConnectionFactory = undefined;
       this._connectionAuditor = undefined;
-      this.providerRegistry.onDidUnsetConnectionFactoryCallback(this, 'kubernetes');
     });
   }
 
@@ -308,11 +307,9 @@ export class ProviderImpl implements Provider, IDisposable {
   ): Disposable {
     this._vmProviderConnectionFactory = vmProviderConnectionFactory;
     this._connectionAuditor = connectionAuditor;
-    this.providerRegistry.onDidSetConnectionFactoryCallback(this, vmProviderConnectionFactory, 'vm');
     return Disposable.create(() => {
       this._vmProviderConnectionFactory = undefined;
       this._connectionAuditor = undefined;
-      this.providerRegistry.onDidUnsetConnectionFactoryCallback(this, 'vm');
     });
   }
 
@@ -345,6 +342,10 @@ export class ProviderImpl implements Provider, IDisposable {
 
   registerLifecycle(lifecycle: ProviderLifecycle): Disposable {
     return this.providerRegistry.registerLifecycle(this, lifecycle);
+  }
+
+  registerScheduler(scheduler: ProviderScheduler): Disposable {
+    return this.schedulerRegistry.register(this, scheduler);
   }
 
   registerInstallation(installation: ProviderInstallation): Disposable {
