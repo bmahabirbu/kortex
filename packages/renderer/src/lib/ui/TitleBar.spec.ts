@@ -29,7 +29,7 @@ import TitleBar from './TitleBar.svelte';
 const getOsPlatformMock = vi.fn();
 
 beforeAll(() => {
-  Object.defineProperty(window, 'getOsPlatform', { value: getOsPlatformMock });
+  (window as any).getOsPlatform = getOsPlatformMock;
 });
 
 beforeEach(() => {
@@ -59,14 +59,11 @@ describe('macOS', () => {
     expect(closeButton).not.toBeInTheDocument();
   });
 
-  test('Expect no title (never shows on macOS) and show search', async () => {
+  test('Expect no title', async () => {
     await waitRender({});
 
-    const title = screen.queryByText('Podman Desktop');
+    const title = screen.queryByText('Kortex');
     expect(title).not.toBeInTheDocument();
-
-    const searchButton = screen.queryByText('Search');
-    expect(searchButton).toBeInTheDocument();
   });
 });
 
@@ -88,16 +85,11 @@ describe('linux', () => {
     expect(closeButton).toBeInTheDocument();
   });
 
-  test('Expect search when experimental config enabled', async () => {
+  test('Expect title', async () => {
     await waitRender({});
 
-    await vi.waitFor(() => {
-      const searchButton = screen.queryByText('Search');
-      expect(searchButton).toBeInTheDocument();
-    });
-
-    const title = screen.queryByText('Podman Desktop');
-    expect(title).not.toBeInTheDocument();
+    const title = screen.queryByText('Kortex');
+    expect(title).toBeInTheDocument();
   });
 });
 
@@ -119,13 +111,10 @@ describe('Windows', () => {
     expect(closeButton).toBeInTheDocument();
   });
 
-  test('Expect title and search', async () => {
+  test('Expect title', async () => {
     await waitRender({});
 
-    const title = screen.queryByText('Podman Desktop');
+    const title = screen.queryByText('Kortex');
     expect(title).toBeInTheDocument();
-
-    const searchButton = screen.queryByText('Search');
-    expect(searchButton).toBeInTheDocument();
   });
 });
