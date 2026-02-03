@@ -31,6 +31,7 @@ import * as osLocale from 'os-locale';
 import { type IConfigurationNode, IConfigurationRegistry } from '/@api/configuration/models.js';
 import type { Event } from '/@api/event.js';
 import type { FeedbackProperties } from '/@api/feedback.js';
+import { TelemetrySettings } from '/@api/telemetry/telemetry-settings.js';
 
 import telemetry from '../../../../../telemetry.json' with { type: 'json' };
 import { stoppedExtensions } from '../../util.js';
@@ -38,7 +39,6 @@ import { Emitter } from '../events/emitter.js';
 import { TelemetryTrustedValue as TypeTelemetryTrustedValue } from '../types/telemetry.js';
 import { Identity } from './identity.js';
 import type { TelemetryRule } from './telemetry-api.js';
-import { TelemetrySettings } from './telemetry-settings.js';
 
 export const TRACK_EVENT_TYPE = 'track';
 export const PAGE_EVENT_TYPE = 'page';

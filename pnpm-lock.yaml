@@ -19,11 +19,6 @@ overrides:
   tsx>esbuild: ^0.25.0
   vite>esbuild: ^0.25.0
 
-patchedDependencies:
-  '@kubernetes/client-node':
-    hash: 1c34691b2a4cf5f4fdeb73244fb59dccceee5642ddca2ac6c41fe86d9fde86e5
-    path: patches/@kubernetes__client-node.patch
-
 importers:
 
   .:
@@ -36,7 +31,7 @@ importers:
         version: 0.4.2
       '@kubernetes/client-node':
         specifier: ^1.3.0
-        version: 1.3.0(patch_hash=1c34691b2a4cf5f4fdeb73244fb59dccceee5642ddca2ac6c41fe86d9fde86e5)(encoding@0.1.13)
+        version: 1.3.0(encoding@0.1.13)
       '@modelcontextprotocol/sdk':
         specifier: ^1.25.3
         version: 1.25.3(hono@4.11.1)(zod@4.1.11)
@@ -212,6 +207,9 @@ importers:
       '@types/better-sqlite3':
         specifier: ^7.6.13
         version: 7.6.13
+      '@types/culori':
+        specifier: ^4.0.1
+        version: 4.0.1
       '@types/dockerode':
         specifier: ^3.3.42
         version: 3.3.42
@@ -263,6 +261,9 @@ importers:
       cross-env:
         specifier: 10.0.0
         version: 10.0.0
+      culori:
+        specifier: ^4.0.2
+        version: 4.0.2
       dts-for-context-bridge:
         specifier: 0.7.1
         version: 0.7.1
@@ -571,7 +572,7 @@ importers:
         version: link:../../packages/extension-api
       '@kubernetes/client-node':
         specifier: ^1.3.0
-        version: 1.3.0(patch_hash=1c34691b2a4cf5f4fdeb73244fb59dccceee5642ddca2ac6c41fe86d9fde86e5)(encoding@0.1.13)
+        version: 1.3.0(encoding@0.1.13)
     devDependencies:
       mkdirp:
         specifier: ^3.0.1
@@ -2306,6 +2307,9 @@ packages:
   '@types/cookie@0.6.0':
     resolution: {integrity: sha512-4Kh9a6B2bQciAhf7FSuMRRkUWecJgJu9nPnx3yzpsfXX/c50REIqpHY4C82bXP90qrLtXtkDxTZosYO3UpOwlA==}
 
+  '@types/culori@4.0.1':
+    resolution: {integrity: sha512-43M51r/22CjhbOXyGT361GZ9vncSVQ39u62x5eJdBQFviI8zWp2X5jzqg7k4M6PVgDQAClpy2bUe2dtwEgEDVQ==}
+
   '@types/debug@4.1.12':
     resolution: {integrity: sha512-vIChWdVG3LG1SMxEvI/AK+FWJthlrqlTu7fbrlywTkkaONwk/UAGaULXRlf8vkzFBLVm0zkMdCquhL5aOjhXPQ==}
 
@@ -3658,6 +3662,10 @@ packages:
   cssstyle@4.6.0:
     resolution: {integrity: sha512-2z+rWdzbbSZv6/rhtvzvqeZQHrBaqgogqt85sqFNbabZOuFbCVFb8kPeEtZjiKkbrm395irpNKiYeFeLiQnFPg==}
     engines: {node: '>=18'}
+
+  culori@4.0.2:
+    resolution: {integrity: sha512-1+BhOB8ahCn4O0cep0Sh2l9KCOfOdY+BXJnKMHFFzDEouSr/el18QwXEMRlOj9UY5nCeA8UN3a/82rUWRBeyBw==}
+    engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
 
   dargs@8.1.0:
     resolution: {integrity: sha512-wAV9QHOsNbwnWdNW2FYvE1P56wtgSbM+3SZcdGiWQILwVjACCXDCI3Ai8QlCjMDB8YK5zySiXZYBiwGmNY3lnw==}
@@ -8800,7 +8808,7 @@ snapshots:
     dependencies:
       ajv: 8.17.1
 
-  '@kubernetes/client-node@1.3.0(patch_hash=1c34691b2a4cf5f4fdeb73244fb59dccceee5642ddca2ac6c41fe86d9fde86e5)(encoding@0.1.13)':
+  '@kubernetes/client-node@1.3.0(encoding@0.1.13)':
     dependencies:
       '@types/js-yaml': 4.0.9
       '@types/node': 22.17.1
@@ -9434,6 +9442,8 @@ snapshots:
       '@types/node': 22.19.3
 
   '@types/cookie@0.6.0': {}
+
+  '@types/culori@4.0.1': {}
 
   '@types/debug@4.1.12':
     dependencies:
@@ -11105,6 +11115,8 @@ snapshots:
       '@asamuzakjp/css-color': 3.2.0
       rrweb-cssom: 0.8.0
     optional: true
+
+  culori@4.0.2: {}
 
   dargs@8.1.0: {}
 

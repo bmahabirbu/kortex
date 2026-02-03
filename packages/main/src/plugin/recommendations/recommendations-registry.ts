@@ -20,8 +20,7 @@ import { inject, injectable } from 'inversify';
 
 import type { ExtensionBanner, RecommendedRegistry } from '/@/plugin/recommendations/recommendations-api.js';
 import { type IConfigurationNode, IConfigurationRegistry } from '/@api/configuration/models.js';
-
-import { RecommendationsSettings } from './recommendations-settings.js';
+import { RecommendationsSettings } from '/@api/recommendations/recommendations-settings.js';
 
 @injectable()
 export class RecommendationsRegistry {
