@@ -121,6 +121,7 @@ import type { ViewInfoUI } from '/@api/view-info';
 import type { VolumeInspectInfo, VolumeListInfo } from '/@api/volume-info';
 import type { WebviewInfo } from '/@api/webview-info';
 
+import product from '../../../product.json' with { type: 'json' };
 import type { ApiSenderType } from '../../main/src/plugin/api';
 import type { ContextInfo } from '../../main/src/plugin/api/context-info';
 import type { KubernetesGeneratorInfo } from '../../main/src/plugin/api/KubernetesGeneratorInfo';
@@ -2916,6 +2917,11 @@ export function initExposure(): void {
 
   contextBridge.exposeInMainWorld('saveListConfig', async (kind: string, items: ListOrganizerItem[]): Promise<void> => {
     return ipcInvoke('list-organizer-registry:saveListConfig', kind, items);
+  });
+
+  // Expose product information
+  contextBridge.exposeInMainWorld('getProductName', (): string => {
+    return product.name;
   });
 }
 

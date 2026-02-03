@@ -11,29 +11,36 @@ import {
 } from '@podman-desktop/ui-svelte';
 import { ContainerIcon } from '@podman-desktop/ui-svelte/icons';
 import moment from 'moment';
+import { onDestroy, onMount } from 'svelte';
+import { get, type Unsubscriber } from 'svelte/store';
 import { router } from 'tinro';
 
-import { withBulkConfirmation } from '/@/lib/actions/BulkActions';
-import Dialog from '/@/lib/dialogs/Dialog.svelte';
-import Prune from '/@/lib/engine/Prune.svelte';
-import NoContainerEngineEmptyScreen from '/@/lib/image/NoContainerEngineEmptyScreen.svelte';
-import SolidPodIcon from '/@/lib/images/SolidPodIcon.svelte';
-import { PodUtils } from '/@/lib/pod/pod-utils';
-import ContainerEngineEnvironmentColumn from '/@/lib/table/columns/ContainerEngineEnvironmentColumn.svelte';
-import { CONTAINER_LIST_VIEW } from '/@/lib/view/views';
 import { handleNavigation } from '/@/navigation';
-import { containersInfos } from '/@/stores/containers';
-import { context } from '/@/stores/context';
-import { podCreationHolder } from '/@/stores/creation-from-containers-store';
-import { podsInfos } from '/@/stores/pods';
-import { providerInfos } from '/@/stores/providers';
-import { findMatchInLeaves } from '/@/stores/search-util';
-import { viewsContributions } from '/@/stores/views';
 import type { ContainerInfo } from '/@api/container-info';
 import { NavigationPage } from '/@api/navigation-page';
+import type { ViewInfoUI } from '/@api/view-info';
 
+import type { PodInfo } from '../../../../main/src/plugin/api/pod-info';
+import { containerGroupsInfo } from '../../stores/containerGroups';
+import { containersInfos } from '../../stores/containers';
+import { context } from '../../stores/context';
+import { podCreationHolder } from '../../stores/creation-from-containers-store';
+import { podsInfos } from '../../stores/pods';
+import { providerInfos } from '../../stores/providers';
+import { findMatchInLeaves } from '../../stores/search-util';
+import { viewsContributions } from '../../stores/views';
+import { withBulkConfirmation } from '../actions/BulkActions';
+import type { ContextUI } from '../context/context';
+import LegacyDialog from '../dialogs/LegacyDialog.svelte';
+import type { EngineInfoUI } from '../engine/EngineInfoUI';
+import Prune from '../engine/Prune.svelte';
+import NoContainerEngineEmptyScreen from '../image/NoContainerEngineEmptyScreen.svelte';
+import SolidPodIcon from '../images/SolidPodIcon.svelte';
+import { PodUtils } from '../pod/pod-utils';
+import { CONTAINER_LIST_VIEW } from '../view/views';
 import { ContainerUtils } from './container-utils';
 import ContainerColumnActions from './ContainerColumnActions.svelte';
+import ContainerColumnEnvironment from './ContainerColumnEnvironment.svelte';
 import ContainerColumnImage from './ContainerColumnImage.svelte';
 import ContainerColumnName from './ContainerColumnName.svelte';
 import ContainerColumnStatus from './ContainerColumnStatus.svelte';
@@ -41,25 +48,26 @@ import ContainerEmptyScreen from './ContainerEmptyScreen.svelte';
 import { ContainerGroupInfoTypeUI, type ContainerGroupInfoUI, type ContainerInfoUI } from './ContainerInfoUI';
 
 const containerUtils = new ContainerUtils();
-let openChoiceModal = $state(false);
+let openChoiceModal = false;
+let enginesList: EngineInfoUI[];
 
-interface Props {
-  searchTerm?: string;
-}
-
-let { searchTerm = '' }: Props = $props();
+// groups of containers that will be displayed
+let containerGroups: ContainerGroupInfoUI[] = [];
+let viewContributions: ViewInfoUI[] = [];
+let globalContext: ContextUI;
+let containersInfo: ContainerInfo[] = [];
+export let searchTerm = '';
+$: updateContainers(containersInfo, globalContext, viewContributions, searchTerm);
 
 function fromExistingImage(): void {
   openChoiceModal = false;
   handleNavigation({ page: NavigationPage.EXISTING_IMAGE_CREATE_CONTAINER });
 }
 
-let providerConnections = $derived(
-  $providerInfos
-    .map(provider => provider.containerConnections)
-    .flat()
-    .filter(providerContainerConnection => providerContainerConnection.status === 'started'),
-);
+$: providerConnections = $providerInfos
+  .map(provider => provider.containerConnections)
+  .flat()
+  .filter(providerContainerConnection => providerContainerConnection.status === 'started');
 
 // filter containers by group type pod
 function filterContainersByGroupTypePod(): ContainerGroupInfoUI[] {
@@ -75,7 +83,7 @@ function filterContainersByGroupTypeNotPod(): ContainerInfoUI[] {
 }
 
 // delete the items selected in the list
-let bulkDeleteInProgress = $state(false);
+let bulkDeleteInProgress = false;
 async function deleteSelectedContainers(): Promise<void> {
   const podGroups = filterContainersByGroupTypePod();
   const selectedContainers = filterContainersByGroupTypeNotPod();
@@ -129,7 +137,7 @@ async function deleteSelectedContainers(): Promise<void> {
 }
 
 // run the items selected in the list
-let bulkRunInProgress = $state(false);
+let bulkRunInProgress = false;
 async function runSelectedContainers(): Promise<void> {
   const podGroups = filterContainersByGroupTypePod();
   const selectedContainers = filterContainersByGroupTypeNotPod();
@@ -198,7 +206,7 @@ function createPodFromContainers(): void {
   const podUtils = new PodUtils();
 
   const podCreation = {
-    name: podUtils.calculateNewPodName($podsInfos),
+    name: podUtils.calculateNewPodName(pods),
     containers: selectedContainers.map(container => {
       return { id: container.id, name: container.name, engineId: container.engineId, ports: container.ports };
     }),
@@ -211,15 +219,55 @@ function createPodFromContainers(): void {
   router.goto('/pod-create-from-containers');
 }
 
-let currentContainers = $derived.by(() => {
-  const viewContributions = $viewsContributions.filter(view => view.viewId === CONTAINER_LIST_VIEW);
+let containersUnsubscribe: Unsubscriber;
+let contextsUnsubscribe: Unsubscriber;
+let podUnsubscribe: Unsubscriber;
+let viewsUnsubscribe: Unsubscriber;
+let pods: PodInfo[];
 
-  return $containersInfos.map((containerInfo: ContainerInfo) => {
-    return containerUtils.getContainerInfoUI(containerInfo, $context, viewContributions);
+onMount(async () => {
+  // grab previous groups
+  containerGroups = get(containerGroupsInfo);
+
+  contextsUnsubscribe = context.subscribe(value => {
+    globalContext = value;
+    if (containersInfo.length > 0) {
+      updateContainers(containersInfo, globalContext, viewContributions, searchTerm);
+    }
+  });
+
+  viewsUnsubscribe = viewsContributions.subscribe(value => {
+    viewContributions = value.filter(view => view.viewId === CONTAINER_LIST_VIEW) || [];
+    if (containersInfo.length > 0) {
+      updateContainers(containersInfo, globalContext, viewContributions, searchTerm);
+    }
+  });
+
+  containersUnsubscribe = containersInfos.subscribe(value => {
+    updateContainers(value, globalContext, viewContributions, searchTerm);
+  });
+
+  podUnsubscribe = podsInfos.subscribe(podInfos => {
+    pods = podInfos;
   });
 });
 
-let enginesList = $derived.by(() => {
+/* updateContainers updates the variables:
+   - containersInfo with the value of containers
+   - containerGroups based on the containers and their groups
+   - multipleEngines and enginesList based on the engines of containers
+*/
+function updateContainers(
+  containers: ContainerInfo[],
+  globalContext: ContextUI,
+  viewContributions: ViewInfoUI[],
+  searchTerm: string,
+): void {
+  containersInfo = containers;
+  const currentContainers = containers.map((containerInfo: ContainerInfo) => {
+    return containerUtils.getContainerInfoUI(containerInfo, globalContext, viewContributions);
+  });
+
   // Map engineName, engineId and engineType from currentContainers to EngineInfoUI[]
   const engines = currentContainers.map(container => {
     return {
@@ -229,11 +277,12 @@ let enginesList = $derived.by(() => {
   });
 
   // Remove duplicates from engines by name
-  return engines.filter((engine, index, self) => index === self.findIndex(t => t.name === engine.name));
-});
+  const uniqueEngines = engines.filter((engine, index, self) => index === self.findIndex(t => t.name === engine.name));
 
-// groups of containers that will be displayed
-let containerGroups = $derived.by(() => {
+  // Set the engines to the global variable for the Prune functionality button
+  enginesList = uniqueEngines;
+
+  // create groups
   let computedContainerGroups = containerUtils.getContainerGroups(currentContainers);
 
   // Filter containers in groups
@@ -257,7 +306,7 @@ let containerGroups = $derived.by(() => {
 
   // update selected items based on current selected items
   computedContainerGroups.forEach(group => {
-    const matchingGroup = computedContainerGroups.find(currentGroup => currentGroup.name === group.name);
+    const matchingGroup = containerGroups.find(currentGroup => currentGroup.name === group.name);
     if (matchingGroup) {
       group.selected = matchingGroup.selected;
       group.expanded = matchingGroup.expanded;
@@ -273,7 +322,27 @@ let containerGroups = $derived.by(() => {
     }
   });
 
-  return computedContainerGroups;
+  // update the value
+  containerGroups = computedContainerGroups;
+}
+
+onDestroy(() => {
+  // store current groups for later
+  containerGroupsInfo.set(containerGroups);
+
+  // unsubscribe from the store
+  if (containersUnsubscribe) {
+    containersUnsubscribe();
+  }
+  if (contextsUnsubscribe) {
+    contextsUnsubscribe();
+  }
+  if (podUnsubscribe) {
+    podUnsubscribe();
+  }
+  if (viewsUnsubscribe) {
+    viewsUnsubscribe();
+  }
 });
 
 function toggleCreateContainer(): void {
@@ -297,7 +366,7 @@ function setStoppedFilter(): void {
   searchTerm = containerUtils.filterSetStopped(searchTerm);
 }
 
-let selectedItemsNumber = $state<number>();
+let selectedItemsNumber: number;
 
 let statusColumn = new TableColumn<ContainerInfoUI | ContainerGroupInfoUI>('Status', {
   align: 'center',
@@ -317,8 +386,8 @@ let nameColumn = new TableColumn<ContainerInfoUI | ContainerGroupInfoUI>('Name',
 });
 
 let envColumn = new TableColumn<ContainerInfoUI | ContainerGroupInfoUI>('Environment', {
-  renderer: ContainerEngineEnvironmentColumn,
-  comparator: (a, b): number => (a.engineId ?? '').localeCompare(b.engineId ?? ''),
+  renderer: ContainerColumnEnvironment,
+  comparator: (a, b): number => (a.engineType ?? '').localeCompare(b.engineType ?? ''),
 });
 
 let imageColumn = new TableColumn<ContainerInfoUI | ContainerGroupInfoUI>('Image', {
@@ -371,15 +440,13 @@ const row = new TableRow<ContainerGroupInfoUI | ContainerInfoUI>({
   },
 });
 
-let containersAndGroups: (ContainerGroupInfoUI | ContainerInfoUI)[] = $derived(
-  containerGroups.map(group => (group?.type === ContainerGroupInfoTypeUI.STANDALONE ? group.containers[0] : group)),
+let containersAndGroups: (ContainerGroupInfoUI | ContainerInfoUI)[];
+$: containersAndGroups = containerGroups.map(group =>
+  group?.type === ContainerGroupInfoTypeUI.STANDALONE ? group.containers[0] : group,
 );
 
 function key(item: ContainerGroupInfoUI | ContainerInfoUI): string {
   return item.id;
-}
-function label(item: ContainerGroupInfoUI | ContainerInfoUI): string {
-  return item.name;
 }
 </script>
 
@@ -392,25 +459,22 @@ function label(item: ContainerGroupInfoUI | ContainerInfoUI): string {
     <Button on:click={toggleCreateContainer} icon={faPlusCircle} title="Create a container">Create</Button>
   {/snippet}
   {#snippet bottomAdditionalActions()}
-    {#if selectedItemsNumber && selectedItemsNumber > 0}
+    {#if selectedItemsNumber > 0}
       <div class="inline-flex space-x-2">
         <Button
           on:click={(): Promise<void> =>
-          runSelectedContainers()}
+           runSelectedContainers()}
           aria-label="Run selected containers and pods"
           title="Run {selectedItemsNumber} selected items"
           inProgress={bulkRunInProgress}
           icon={faPlay}>
         </Button>
         <Button
-          on:click={(): void => {
-            if (selectedItemsNumber !== undefined) {
-              withBulkConfirmation(
-                deleteSelectedContainers,
-                `delete ${selectedItemsNumber} container${selectedItemsNumber > 1 ? 's' : ''}`,
-              );
-            }
-          }}
+          on:click={(): void =>
+            withBulkConfirmation(
+              deleteSelectedContainers,
+              `delete ${selectedItemsNumber} container${selectedItemsNumber > 1 ? 's' : ''}`,
+            )}
           aria-label="Delete selected containers and pods"
           title="Delete {selectedItemsNumber} selected items"
           inProgress={bulkDeleteInProgress}
@@ -465,8 +529,6 @@ function label(item: ContainerGroupInfoUI | ContainerInfoUI): string {
           row={row}
           defaultSortColumn="Name"
           key={key}
-          label={label}
-          enableLayoutConfiguration={true}
           on:update={(): ContainerGroupInfoUI[] => (containerGroups = [...containerGroups])}>
         </Table>
       {/if}
@@ -475,25 +537,21 @@ function label(item: ContainerGroupInfoUI | ContainerInfoUI): string {
 </NavPage>
 
 {#if openChoiceModal}
-  <Dialog
+  <LegacyDialog
     title="Create a new container"
     onclose={(): void => {
       openChoiceModal = false;
     }}>
-    {#snippet content()}
-        <div  class="h-full flex flex-col justify-items-center text-[var(--pd-modal-text)]">
-        <span class="pb-3">Choose the following:</span>
-        <ul class="list-disc ml-8 space-y-2">
-          <li>Create a container from a Containerfile</li>
-          <li>Create a container from an existing image stored in the local registry</li>
-        </ul>
-      </div>
-      {/snippet}
-    {#snippet buttons()}
-
-        <Button type="primary" on:click={fromDockerfile}>Containerfile or Dockerfile</Button>
-        <Button type="secondary" on:click={fromExistingImage}>Existing image</Button>
-
-      {/snippet}
-  </Dialog>
+    <div slot="content" class="h-full flex flex-col justify-items-center text-[var(--pd-modal-text)]">
+      <span class="pb-3">Choose the following:</span>
+      <ul class="list-disc ml-8 space-y-2">
+        <li>Create a container from a Containerfile</li>
+        <li>Create a container from an existing image stored in the local registry</li>
+      </ul>
+    </div>
+    <svelte:fragment slot="buttons">
+      <Button type="primary" on:click={fromDockerfile}>Containerfile or Dockerfile</Button>
+      <Button type="secondary" on:click={fromExistingImage}>Existing image</Button>
+    </svelte:fragment>
+  </LegacyDialog>
 {/if}

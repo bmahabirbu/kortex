@@ -9,11 +9,12 @@ import { Terminal } from '@xterm/xterm';
 import type { IDisposable } from 'monaco-editor';
 import { onDestroy, onMount } from 'svelte';
 
-import { getTerminalTheme } from '/@/lib/terminal/terminal-theme';
-import NoLogIcon from '/@/lib/ui/NoLogIcon.svelte';
 import { getExistingTerminal, registerTerminal } from '/@/stores/provider-terminal-store';
 import type { ProviderContainerConnectionInfo, ProviderInfo, ProviderVmConnectionInfo } from '/@api/provider-info';
-import { TerminalSettings } from '/@api/terminal/terminal-settings';
+
+import { TerminalSettings } from '../../../../main/src/plugin/terminal-settings';
+import { getTerminalTheme } from '../../../../main/src/plugin/terminal-theme';
+import NoLogIcon from '../ui/NoLogIcon.svelte';
 
 interface ProviderDetailsTerminalProps {
   provider: ProviderInfo;
@@ -132,10 +133,6 @@ async function refreshTerminal(): Promise<void> {
     TerminalSettings.SectionName + '.' + TerminalSettings.LineHeight,
   );
 
-  const scrollback = await window.getConfigurationValue<number>(
-    TerminalSettings.SectionName + '.' + TerminalSettings.Scrollback,
-  );
-
   // get terminal if any
   const existingTerminal = getExistingTerminal(provider.internalId, connectionInfo.name);
   shellTerminal = new Terminal({
@@ -143,7 +140,6 @@ async function refreshTerminal(): Promise<void> {
     lineHeight,
     screenReaderMode,
     theme: getTerminalTheme(),
-    scrollback,
   });
 
   if (existingTerminal) {

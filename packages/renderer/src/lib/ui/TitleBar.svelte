@@ -5,11 +5,11 @@ import DesktopIcon from '../images/DesktopIcon.svelte';
 import WindowControlButtons from '../window-control-buttons/ControlButtons.svelte';
 
 let platform: string;
-
-const title = 'Kortex';
+let title: string = '';
 
 onMount(async () => {
   platform = await window.getOsPlatform();
+  title = window.getProductName();
 });
 </script>
 

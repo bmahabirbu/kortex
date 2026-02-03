@@ -18,6 +18,7 @@ let telemetry = true;
 
 const welcomeUtils = new WelcomeUtils();
 let podmanDesktopVersion: string;
+let productName: string;
 
 // Extend ProviderInfo to have a selected property
 interface OnboardingInfoWithAdditionalInfo extends OnboardingInfo {
@@ -60,6 +61,7 @@ onMount(async () => {
     showTelemetry = true;
   }
   podmanDesktopVersion = await window.getPodmanDesktopVersion();
+  productName = window.getProductName();
 
   if (showWelcome) {
     await window.updateConfigurationValue(`releaseNotesBanner.show`, podmanDesktopVersion);
@@ -87,14 +89,14 @@ function startOnboardingQueue(): void {
     style="background-image: url({bgImage}); background-position: 50% -175%; background-size: 100% 75%">
     <!-- Header -->
     <div class="flex flex-row flex-none backdrop-blur-sm p-6 mt-10">
-      <div class="flex flex-auto text-lg font-bold">Get started with Kortex</div>
+      <div class="flex flex-auto text-lg font-bold">Get started with {productName}</div>
     </div>
 
     <!-- Body -->
     <div class="flex flex-col justify-center content-center flex-auto backdrop-blur-sm p-2 overflow-y-auto">
       <div class="flex justify-center p-2"><DesktopIcon /></div>
       <div class="flex justify-center text-lg font-bold p-2">
-        <span class="mr-2">🎉</span>Welcome to Kortex v{podmanDesktopVersion} !
+        <span class="mr-2">🎉</span>Welcome to {productName} v{podmanDesktopVersion} !
       </div>
     </div>
 
@@ -109,7 +111,7 @@ function startOnboardingQueue(): void {
             class="text-lg px-2"
             title="Enable telemetry"><div class="text-base font-medium">Telemetry:</div></Checkbox>
           <div class="w-2/5 text-[var(--pd-content-card-text)]">
-            Help Red Hat improve Kortex by allowing anonymous usage data to be collected.
+            Help Red Hat improve {productName} by allowing anonymous usage data to be collected.
             <Link
               on:click={async (): Promise<void> => {
                 await window.openExternal('https://developers.redhat.com/article/tool-data-collection');

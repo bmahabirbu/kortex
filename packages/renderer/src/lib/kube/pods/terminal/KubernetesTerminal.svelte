@@ -5,9 +5,10 @@ import { type IDisposable, Terminal } from '@xterm/xterm';
 import { onDestroy, onMount } from 'svelte';
 import { router } from 'tinro';
 
-import { getTerminalTheme } from '/@/lib/terminal/terminal-theme';
 import { terminalStates } from '/@/stores/kubernetes-terminal-state-store';
-import { TerminalSettings } from '/@api/terminal/terminal-settings';
+
+import { TerminalSettings } from '../../../../../../main/src/plugin/terminal-settings';
+import { getTerminalTheme } from '../../../../../../main/src/plugin/terminal-theme';
 
 export let podName: string;
 export let containerName: string;
@@ -95,16 +96,11 @@ async function initializeNewTerminal(container: HTMLElement): Promise<void> {
     TerminalSettings.SectionName + '.' + TerminalSettings.LineHeight,
   );
 
-  const scrollback = await window.getConfigurationValue<number>(
-    TerminalSettings.SectionName + '.' + TerminalSettings.Scrollback,
-  );
-
   shellTerminal = new Terminal({
     fontSize,
     lineHeight,
     screenReaderMode,
     theme: getTerminalTheme(),
-    scrollback,
   });
 
   id = await window.kubernetesExec(

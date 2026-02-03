@@ -15,17 +15,16 @@ import { onDestroy, onMount } from 'svelte';
 import type { Unsubscriber } from 'svelte/store';
 import { router } from 'tinro';
 
-import { withBulkConfirmation } from '/@/lib/actions/BulkActions';
-import type { EngineInfoUI } from '/@/lib/engine/EngineInfoUI';
-import Prune from '/@/lib/engine/Prune.svelte';
-import NoContainerEngineEmptyScreen from '/@/lib/image/NoContainerEngineEmptyScreen.svelte';
-import VolumeIcon from '/@/lib/images/VolumeIcon.svelte';
-import ContainerEngineEnvironmentColumn from '/@/lib/table/columns/ContainerEngineEnvironmentColumn.svelte';
-import { providerInfos } from '/@/stores/providers';
-import { fetchVolumesWithData, filtered, searchPattern, volumeListInfos } from '/@/stores/volumes';
-
+import { providerInfos } from '../../stores/providers';
+import { fetchVolumesWithData, filtered, searchPattern, volumeListInfos } from '../../stores/volumes';
+import { withBulkConfirmation } from '../actions/BulkActions';
+import type { EngineInfoUI } from '../engine/EngineInfoUI';
+import Prune from '../engine/Prune.svelte';
+import NoContainerEngineEmptyScreen from '../image/NoContainerEngineEmptyScreen.svelte';
+import VolumeIcon from '../images/VolumeIcon.svelte';
 import { VolumeUtils } from './volume-utils';
 import VolumeColumnActions from './VolumeColumnActions.svelte';
+import VolumeColumnEnvironment from './VolumeColumnEnvironment.svelte';
 import VolumeColumnName from './VolumeColumnName.svelte';
 import VolumeColumnStatus from './VolumeColumnStatus.svelte';
 import VolumeEmptyScreen from './VolumeEmptyScreen.svelte';
@@ -143,8 +142,8 @@ let nameColumn = new TableColumn<VolumeInfoUI>('Name', {
 });
 
 let envColumn = new TableColumn<VolumeInfoUI>('Environment', {
-  renderer: ContainerEngineEnvironmentColumn,
-  comparator: (a, b): number => a.engineId.localeCompare(b.engineId),
+  renderer: VolumeColumnEnvironment,
+  comparator: (a, b): number => a.engineName.localeCompare(b.engineName),
 });
 
 let ageColumn = new TableColumn<VolumeInfoUI, Date>('Age', {
@@ -174,19 +173,6 @@ const row = new TableRow<VolumeInfoUI>({
   selectable: (volume): boolean => volume.status === 'UNUSED',
   disabledText: 'Volume is used by a container',
 });
-/**
- * Utility function for the Table to get the key to use for each item
- */
-function key(obj: VolumeInfoUI): string {
-  return `${obj.engineId}:${obj.name}`;
-}
-
-/**
- * Utility function for the Table to get the label to use for each item
- */
-function label(obj: VolumeInfoUI): string {
-  return obj.name;
-}
 </script>
 
 <NavPage bind:searchTerm={searchTerm} title="volumes">
@@ -241,9 +227,6 @@ function label(obj: VolumeInfoUI): string {
         columns={columns}
         row={row}
         defaultSortColumn="Name"
-        enableLayoutConfiguration={true}
-        key={key}
-        label={label}
         on:update={(): VolumeInfoUI[] => (volumes = volumes)}>
       </Table>
     {/if}

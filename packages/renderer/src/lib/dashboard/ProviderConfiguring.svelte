@@ -6,10 +6,10 @@ import { FitAddon } from '@xterm/addon-fit';
 import { Terminal } from '@xterm/xterm';
 import { onDestroy, onMount } from 'svelte';
 
-import { getTerminalTheme } from '/@/lib/terminal/terminal-theme';
 import type { CheckStatus, ProviderInfo } from '/@api/provider-info';
-import { TerminalSettings } from '/@api/terminal/terminal-settings';
 
+import { TerminalSettings } from '../../../../main/src/plugin/terminal-settings';
+import { getTerminalTheme } from '../../../../main/src/plugin/terminal-theme';
 import Steps from '../ui/Steps.svelte';
 import PreflightChecks from './PreflightChecks.svelte';
 import ProviderCard from './ProviderCard.svelte';
@@ -44,17 +44,12 @@ async function refreshTerminal(): Promise<void> {
     TerminalSettings.SectionName + '.' + TerminalSettings.LineHeight,
   );
 
-  const scrollback = await window.getConfigurationValue<number>(
-    TerminalSettings.SectionName + '.' + TerminalSettings.Scrollback,
-  );
-
   logsTerminal = new Terminal({
     fontSize,
     lineHeight,
     disableStdin: true,
     theme: getTerminalTheme(),
     convertEol: true,
-    scrollback,
   });
   termFit = new FitAddon();
   logsTerminal.loadAddon(termFit);

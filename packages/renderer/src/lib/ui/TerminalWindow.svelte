@@ -5,9 +5,10 @@ import { FitAddon } from '@xterm/addon-fit';
 import { Terminal } from '@xterm/xterm';
 import { createEventDispatcher, onDestroy, onMount } from 'svelte';
 
-import { getTerminalTheme } from '/@/lib/terminal/terminal-theme';
 import TerminalSearchControls from '/@/lib/ui/TerminalSearchControls.svelte';
-import { TerminalSettings } from '/@api/terminal/terminal-settings';
+
+import { TerminalSettings } from '../../../../main/src/plugin/terminal-settings';
+import { getTerminalTheme } from '../../../../main/src/plugin/terminal-theme';
 
 interface Props {
   terminal?: Terminal;
@@ -47,10 +48,6 @@ async function refreshTerminal(): Promise<void> {
     TerminalSettings.SectionName + '.' + TerminalSettings.LineHeight,
   );
 
-  const scrollback = await window.getConfigurationValue<number>(
-    TerminalSettings.SectionName + '.' + TerminalSettings.Scrollback,
-  );
-
   terminal = new Terminal({
     fontSize,
     lineHeight,
@@ -58,7 +55,6 @@ async function refreshTerminal(): Promise<void> {
     theme: getTerminalTheme(),
     convertEol: convertEol,
     screenReaderMode: screenReaderMode,
-    scrollback,
   });
   const fitAddon = new FitAddon();
   terminal.loadAddon(fitAddon);
