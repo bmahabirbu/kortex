@@ -44,6 +44,7 @@ import type {
 import type { DynamicToolUIPart, UIMessageChunk } from 'ai';
 import { contextBridge, ipcRenderer } from 'electron';
 
+import type { CertificateInfo } from '/@api/certificate-info';
 import type { FlowGenerationParameters } from '/@api/chat/flow-generation-parameters-schema';
 import type { InferenceParameters } from '/@api/chat/InferenceParameters.js';
 import type { Chat, Message } from '/@api/chat/schema.js';
@@ -63,15 +64,19 @@ import type {
 } from '/@api/container-info';
 import type { ContainerInspectInfo } from '/@api/container-inspect-info';
 import type { ContainerStatsInfo } from '/@api/container-stats-info';
+import type { ContainerfileInfo } from '/@api/containerfile-info';
 import type { ContributionInfo } from '/@api/contribution-info';
 import type { MessageBoxOptions, MessageBoxReturnValue } from '/@api/dialog';
 import type { DockerSocketMappingStatusInfo } from '/@api/docker-compatibility-info';
+import type { DocumentationInfo } from '/@api/documentation-info';
+import type { ExploreFeature } from '/@api/explore-feature';
 import type { ExtensionDevelopmentFolderInfo } from '/@api/extension-development-folders-info';
 import type { ExtensionInfo } from '/@api/extension-info';
-import type { FeedbackProperties, GitHubIssue } from '/@api/feedback';
+import type { FeedbackMessages, FeedbackProperties, GitHubIssue } from '/@api/feedback';
 import type { FlowExecuteInfo } from '/@api/flow-execute-info';
 import type { FlowInfo } from '/@api/flow-info';
 import type { FlowScheduleInfo } from '/@api/flow-schedule-info';
+import type { ItemInfo } from '/@api/help-menu';
 import type { HistoryInfo } from '/@api/history-info';
 import type { IconInfo } from '/@api/icon-info';
 import type { ImageCheckerInfo } from '/@api/image-checker-info';
@@ -88,6 +93,7 @@ import type { ForwardConfig, ForwardOptions } from '/@api/kubernetes-port-forwar
 import type { ResourceCount } from '/@api/kubernetes-resource-count';
 import type { KubernetesContextResources } from '/@api/kubernetes-resources';
 import type { KubernetesTroubleshootingInformation } from '/@api/kubernetes-troubleshooting';
+import type { ListOrganizerItem } from '/@api/list-organizer';
 import type { ManifestCreateOptions, ManifestInspectInfo, ManifestPushOptions } from '/@api/manifest-info';
 import type { MCPRemoteServerInfo, MCPServerDetail } from '/@api/mcp/mcp-server-info';
 import type { MCPSetupOptions } from '/@api/mcp/mcp-setup';
@@ -110,6 +116,7 @@ import type { ChunkProviderInfo } from '/@api/rag/chunk-provider-info';
 import type { ReleaseNotesInfo } from '/@api/release-notes-info';
 import type { StatusBarEntryDescriptor } from '/@api/status-bar';
 import type { PinOption } from '/@api/status-bar/pin-option';
+import type { TelemetryMessages } from '/@api/telemetry';
 import type { ViewInfoUI } from '/@api/view-info';
 import type { VolumeInspectInfo, VolumeListInfo } from '/@api/volume-info';
 import type { WebviewInfo } from '/@api/webview-info';
@@ -410,6 +417,10 @@ export function initExposure(): void {
 
   contextBridge.exposeInMainWorld('listNetworks', async (): Promise<NetworkInspectInfo[]> => {
     return ipcInvoke('container-provider-registry:listNetworks');
+  });
+
+  contextBridge.exposeInMainWorld('removeNetwork', async (engine: string, networkId: string): Promise<void> => {
+    return ipcInvoke('container-provider-registry:removeNetwork', engine, networkId);
   });
 
   contextBridge.exposeInMainWorld(
@@ -2616,12 +2627,20 @@ export function initExposure(): void {
     return ipcInvoke('os:getHostCpu');
   });
 
+  contextBridge.exposeInMainWorld('getFeedbackMessages', async (): Promise<FeedbackMessages> => {
+    return ipcInvoke('feedback:getFeedbackMessages');
+  });
+
   contextBridge.exposeInMainWorld('sendFeedback', async (feedback: FeedbackProperties): Promise<void> => {
     return ipcInvoke('feedback:send', feedback);
   });
 
   contextBridge.exposeInMainWorld('previewOnGitHub', async (feedback: GitHubIssue): Promise<void> => {
     return ipcInvoke('feedback:GitHubPreview', feedback);
+  });
+
+  contextBridge.exposeInMainWorld('getTelemetryMessages', async (): Promise<TelemetryMessages> => {
+    return ipcInvoke('telemetry:getTelemetryMessages');
   });
 
   contextBridge.exposeInMainWorld('telemetryTrack', async (event: string, eventProperties?: unknown): Promise<void> => {
@@ -2797,6 +2816,10 @@ export function initExposure(): void {
     return ipcInvoke('learning-center:listGuides');
   });
 
+  contextBridge.exposeInMainWorld('helpMenuGetItems', async (): Promise<ItemInfo[]> => {
+    return ipcInvoke('help-menu:getItems');
+  });
+
   contextBridge.exposeInMainWorld('contextCollectAllValues', async (): Promise<Record<string, unknown>> => {
     return ipcInvoke('context:collectAllValues');
   });
@@ -2848,6 +2871,51 @@ export function initExposure(): void {
 
   contextBridge.exposeInMainWorld('unpinStatusBar', async (optionId: string): Promise<void> => {
     return ipcInvoke('statusbar:unpin', optionId);
+  });
+
+  // Missing functions from PD v1.25.1
+  contextBridge.exposeInMainWorld('listCertificates', async (): Promise<CertificateInfo[]> => {
+    return ipcInvoke('certificates:listCertificates');
+  });
+
+  contextBridge.exposeInMainWorld('listFeatures', async (): Promise<ExploreFeature[]> => {
+    return ipcInvoke('explore-features:listFeatures');
+  });
+
+  contextBridge.exposeInMainWorld('closeFeatureCard', async (featureId: string): Promise<void> => {
+    return ipcInvoke('explore-features:closeFeatureCard', featureId);
+  });
+
+  contextBridge.exposeInMainWorld('containerfileGetInfo', async (path: string): Promise<ContainerfileInfo> => {
+    return ipcInvoke('containerfile:getInfo', path);
+  });
+
+  contextBridge.exposeInMainWorld('getDocumentationItems', async (): Promise<DocumentationInfo[]> => {
+    return ipcInvoke('documentation:getItems');
+  });
+
+  contextBridge.exposeInMainWorld('refreshDocumentationItems', async (): Promise<void> => {
+    return ipcInvoke('documentation:refresh');
+  });
+
+  contextBridge.exposeInMainWorld('createTempFile', async (content: string): Promise<string> => {
+    return ipcInvoke('temp-file-service:createTempFile', content);
+  });
+
+  contextBridge.exposeInMainWorld('removeTempFile', async (filePath: string): Promise<void> => {
+    return ipcInvoke('temp-file-service:removeTempFile', filePath);
+  });
+
+  contextBridge.exposeInMainWorld('registerWebviewDevTools', async (webcontentId: number): Promise<void> => {
+    return ipcInvoke('webview:devtools:register', webcontentId);
+  });
+
+  contextBridge.exposeInMainWorld('cleanupWebviewDevTools', async (webcontentId: number): Promise<void> => {
+    return ipcInvoke('webview:devtools:cleanup', webcontentId);
+  });
+
+  contextBridge.exposeInMainWorld('saveListConfig', async (kind: string, items: ListOrganizerItem[]): Promise<void> => {
+    return ipcInvoke('list-organizer-registry:saveListConfig', kind, items);
   });
 }
 
