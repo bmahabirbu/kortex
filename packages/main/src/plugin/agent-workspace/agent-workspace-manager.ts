@@ -19,7 +19,7 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import type { Disposable } from '@openkaiden/api';
+import type { Disposable, RunError } from '@openkaiden/api';
 import { inject, injectable, preDestroy } from 'inversify';
 
 import { IPCHandle } from '/@/plugin/api.js';
@@ -60,6 +60,30 @@ export class AgentWorkspaceManager implements Disposable {
     return 'kdn';
   }
 
+  /**
+   * Extract a meaningful error message from a kdn CLI failure.
+   *
+   * When invoked with `--output json`, kdn writes structured errors to stdout
+   * as `{"error":"..."}`. This method parses that when available, otherwise
+   * falls back to the generic error message.
+   */
+  private extractCliError(err: unknown): string {
+    if (err instanceof Error && 'stdout' in err && typeof (err as RunError).stdout === 'string') {
+      try {
+        const parsed: unknown = JSON.parse((err as RunError).stdout);
+        if (typeof parsed === 'object' && parsed !== null && 'error' in parsed) {
+          const errorField = (parsed as { error: unknown }).error;
+          if (typeof errorField === 'string' && errorField) {
+            return errorField;
+          }
+        }
+      } catch {
+        // not JSON – fall through
+      }
+    }
+    return err instanceof Error ? err.message : String(err);
+  }
+
   private async execKdn<T>(args: string[], options?: { cwd?: string }): Promise<T> {
     const cliPath = this.getCliPath();
     const fullArgs = ['workspace', ...args, '--output', 'json'];
@@ -68,9 +92,9 @@ export class AgentWorkspaceManager implements Disposable {
       const result = await this.exec.exec(cliPath, fullArgs, options);
       return JSON.parse(result.stdout) as T;
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      console.log(`kdn failed: ${cliPath} ${fullArgs.join(' ')} — ${message}`);
-      throw err;
+      const detail = this.extractCliError(err);
+      console.error(`kdn failed: ${cliPath} ${fullArgs.join(' ')} — ${detail}`);
+      throw new Error(detail);
     }
   }
 
@@ -96,11 +120,11 @@ export class AgentWorkspaceManager implements Disposable {
       task.status = 'success';
       return workspaceId;
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : String(err);
-      console.log(`kdn failed: ${cliPath} ${args.join(' ')} — ${message}`);
+      const detail = this.extractCliError(err);
+      console.error(`kdn failed: ${cliPath} ${args.join(' ')} — ${detail}`);
       task.status = 'failure';
-      task.error = `Failed to create workspace: ${message}`;
-      throw err;
+      task.error = `Failed to create workspace: ${detail}`;
+      throw new Error(detail);
     } finally {
       task.state = 'completed';
     }

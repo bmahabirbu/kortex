@@ -19,7 +19,7 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import type { RunResult } from '@openkaiden/api';
+import type { RunError, RunResult } from '@openkaiden/api';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 
 import type { IPCHandle } from '/@/plugin/api.js';
@@ -91,6 +91,17 @@ const KAIDEN_CLI_PATH = '/usr/local/bin/kdn';
 
 function mockExecResult(stdout: string): RunResult {
   return { command: KAIDEN_CLI_PATH, stdout, stderr: '' };
+}
+
+function mockRunError(overrides: Partial<RunError> = {}): RunError {
+  const err = new Error(overrides.message ?? 'Command execution failed with exit code 1') as RunError;
+  err.exitCode = overrides.exitCode ?? 1;
+  err.command = overrides.command ?? KAIDEN_CLI_PATH;
+  err.stdout = overrides.stdout ?? '';
+  err.stderr = overrides.stderr ?? '';
+  err.cancelled = overrides.cancelled ?? false;
+  err.killed = overrides.killed ?? false;
+  return err;
 }
 
 beforeEach(() => {
@@ -182,15 +193,28 @@ describe('create', () => {
   });
 
   test('sets task failure status when CLI fails', async () => {
-    const errorSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
     vi.spyOn(exec, 'exec').mockRejectedValue(new Error('command not found'));
 
     await expect(manager.create(defaultOptions)).rejects.toThrow('command not found');
 
-    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('kdn failed:'));
     expect(mockTask.status).toBe('failure');
     expect(mockTask.error).toContain('command not found');
     expect(mockTask.state).toBe('completed');
+  });
+
+  test('extracts kdn JSON error from stdout on failure', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const runError = mockRunError({
+      stdout: JSON.stringify({ error: 'failed to create runtime instance: exit status 125' }),
+    });
+    vi.spyOn(exec, 'exec').mockRejectedValue(runError);
+
+    await expect(manager.create(defaultOptions)).rejects.toThrow('failed to create runtime instance: exit status 125');
+
+    expect(mockTask.error).toBe('Failed to create workspace: failed to create runtime instance: exit status 125');
   });
 
   test('includes workspace name in task title when provided', async () => {
@@ -240,6 +264,7 @@ describe('create', () => {
 
   test('rejects when source directory does not exist', async () => {
     vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
     vi.spyOn(exec, 'exec').mockRejectedValue(new Error('sources directory does not exist: /tmp/not-found'));
 
     await expect(manager.create({ ...defaultOptions, sourcePath: '/tmp/not-found' })).rejects.toThrow(
@@ -288,6 +313,7 @@ describe('list', () => {
 
   test('rejects when CLI fails', async () => {
     vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
     vi.spyOn(exec, 'exec').mockRejectedValue(new Error('command not found'));
 
     await expect(manager.list()).rejects.toThrow('command not found');
@@ -320,6 +346,7 @@ describe('remove', () => {
 
   test('rejects when CLI fails for unknown id', async () => {
     vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
     vi.spyOn(exec, 'exec').mockRejectedValue(new Error('workspace not found: unknown-id'));
 
     await expect(manager.remove('unknown-id')).rejects.toThrow('workspace not found: unknown-id');
@@ -395,6 +422,7 @@ describe('start', () => {
 
   test('rejects when CLI fails for unknown id', async () => {
     vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
     vi.spyOn(exec, 'exec').mockRejectedValue(new Error('workspace not found: unknown-id'));
 
     await expect(manager.start('unknown-id')).rejects.toThrow('workspace not found: unknown-id');
@@ -427,6 +455,7 @@ describe('stop', () => {
 
   test('rejects when CLI fails for unknown id', async () => {
     vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
     vi.spyOn(exec, 'exec').mockRejectedValue(new Error('workspace not found: unknown-id'));
 
     await expect(manager.stop('unknown-id')).rejects.toThrow('workspace not found: unknown-id');
