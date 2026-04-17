@@ -65,4 +65,5 @@ export enum NavigationPage {
   SKILLS = 'skills',
   SKILL_DETAILS = 'skill-details',
   RAG_ENVIRONMENT_DETAILS = 'rag-environment-details',
+  MODELS = 'models',
 }

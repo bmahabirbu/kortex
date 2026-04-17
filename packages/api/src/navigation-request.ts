@@ -85,6 +85,7 @@ export interface NavigationParameters {
   [NavigationPage.RAG_ENVIRONMENT_DETAILS]: {
     name: string;
   };
+  [NavigationPage.MODELS]: never;
 }
 
 // the parameters property is optional when the NavigationParameters say it is
