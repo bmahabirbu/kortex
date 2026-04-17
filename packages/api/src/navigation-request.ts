@@ -87,6 +87,7 @@ export interface NavigationParameters {
   };
   [NavigationPage.SECRET_VAULT]: never;
   [NavigationPage.SECRET_VAULT_CREATE]: never;
+  [NavigationPage.MODELS]: never;
 }
 
 // the parameters property is optional when the NavigationParameters say it is

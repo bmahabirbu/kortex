@@ -29,6 +29,7 @@ import { LocalStorage } from '/@/lib/chat/hooks/local-storage.svelte';
 import { convertToUIMessages } from '/@/lib/chat/utils/chat';
 import { getModels } from '/@/lib/models/models-utils';
 import { mcpRemoteServerInfos } from '/@/stores/mcp-remote-servers';
+import { disabledModels, isModelEnabled } from '/@/stores/model-catalog';
 import { providerInfos } from '/@/stores/providers';
 import { MessageConfigSchema } from '/@api/chat/message-config';
 import type { Chat as DbChat, Message as DbMessage } from '/@api/chat/schema.js';
@@ -50,7 +51,10 @@ let {
   readonly: boolean;
 } = $props();
 
-let models: Array<ModelInfo> = $derived(getModels($providerInfos));
+let allModels: Array<ModelInfo> = $derived(getModels($providerInfos));
+let models: Array<ModelInfo> = $derived(
+  allModels.filter(m => isModelEnabled($disabledModels, m.providerId, m.label)),
+);
 
 const config = MessageConfigSchema.safeParse(messages[messages.length - 1]?.config).data;
 

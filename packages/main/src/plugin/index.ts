@@ -220,6 +220,7 @@ import { ListOrganizerRegistry } from './list-organizer.js';
 import { INTERNAL_PROVIDER_ID, MCPRegistry } from './mcp/mcp-registry.js';
 import { MCPSchemaValidator } from './mcp/mcp-schema-validator.js';
 import { MessageBox } from './message-box.js';
+import { ModelCatalogInit } from './model-catalog-init.js';
 import { NavigationItemsInit } from './navigation-items-init.js';
 import { OnboardingRegistry } from './onboarding-registry.js';
 import { OpenDevToolsInit } from './open-devtools-init.js';
@@ -743,6 +744,10 @@ export class PluginSystem {
     container.bind<NavigationItemsInit>(NavigationItemsInit).toSelf().inSingletonScope();
     const navigationItems = container.get<NavigationItemsInit>(NavigationItemsInit);
     navigationItems.init();
+
+    container.bind<ModelCatalogInit>(ModelCatalogInit).toSelf().inSingletonScope();
+    const modelCatalogInit = container.get<ModelCatalogInit>(ModelCatalogInit);
+    modelCatalogInit.init();
 
     // only in development mode
     if (import.meta.env.DEV) {
