@@ -53,6 +53,7 @@ import { Container } from 'inversify';
 import { lookup } from 'mime-types';
 
 import { AgentWorkspaceManager } from '/@/plugin/agent-workspace/agent-workspace-manager.js';
+import { KdnCliTool } from '/@/plugin/agent-workspace/kdn-cli-tool.js';
 import { IPCHandle, IPCMainOn, WebContentsType } from '/@/plugin/api.js';
 import { ChunkProviderRegistry } from '/@/plugin/chunk-provider-registry.js';
 import { ContainerfileParser } from '/@/plugin/containerfile-parser.js';
@@ -580,6 +581,7 @@ export class PluginSystem {
     container.bind<MCPManager>(MCPManager).toSelf().inSingletonScope();
     container.bind<CliToolRegistry>(CliToolRegistry).toSelf().inSingletonScope();
     container.bind<AgentWorkspaceManager>(AgentWorkspaceManager).toSelf().inSingletonScope();
+    container.bind<KdnCliTool>(KdnCliTool).toSelf().inSingletonScope();
     container.bind<FlowManager>(FlowManager).toSelf().inSingletonScope();
     container.bind<SkillManager>(SkillManager).toSelf().inSingletonScope();
     container.bind<TrayMenuRegistry>(TrayMenuRegistry).toSelf().inSingletonScope();
@@ -660,6 +662,9 @@ export class PluginSystem {
 
     const mcpManager = container.get<MCPManager>(MCPManager);
     mcpManager.init();
+
+    const kdnCliTool = container.get<KdnCliTool>(KdnCliTool);
+    await kdnCliTool.init();
 
     const agentWorkspaceManager = container.get<AgentWorkspaceManager>(AgentWorkspaceManager);
     agentWorkspaceManager.init();

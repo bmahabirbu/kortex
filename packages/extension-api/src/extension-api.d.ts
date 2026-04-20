@@ -5124,7 +5124,7 @@ declare module '@openkaiden/api' {
     export function setValue(key: string, value: any, scope?: 'onboarding' | 'DockerCompatibility'): void;
   }
 
-  export type CliToolInstallationSource = 'extension' | 'external';
+  export type CliToolInstallationSource = 'extension' | 'external' | 'bundled';
 
   /**
    * Options to create new CliTool instance and register it in Kaiden
@@ -5149,8 +5149,9 @@ declare module '@openkaiden/api' {
 
     /**
      * How the cli tool has been installed
-     * - external: it has been installed by the user externally from podman desktop. Its update process is disable.
-     * - extension: it has been installed by podman desktop extension. It can be updated
+     * - external: it has been installed by the user externally from podman desktop. Its update process is disabled.
+     * - extension: it has been installed by a podman desktop extension. It can be updated.
+     * - bundled: it is shipped with the application itself, not via an extension.
      */
     installationSource?: CliToolInstallationSource;
   }
