@@ -51,8 +51,9 @@ export class KdnCliTool implements Disposable {
   private async getVersion(binaryPath: string): Promise<string | undefined> {
     try {
       const result = await this.exec.exec(binaryPath, ['version']);
-      // output format: "kdn version 0.5.0"
-      const parts = result.stdout.trim().split(' ');
+      // kdn writes version to stderr: "kdn version 0.5.0"
+      const output = (result.stdout || result.stderr).trim();
+      const parts = output.split(' ');
       return parts[parts.length - 1];
     } catch {
       return undefined;

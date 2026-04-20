@@ -46,7 +46,7 @@ beforeEach(() => {
 
 test('registers bundled kdn binary with version', async () => {
   vi.mocked(existsSync).mockReturnValue(true);
-  vi.spyOn(exec, 'exec').mockResolvedValue({ stdout: 'kdn version 0.5.0' } as RunResult);
+  vi.spyOn(exec, 'exec').mockResolvedValue({ stdout: '', stderr: 'kdn version 0.5.0' } as RunResult);
 
   await kdnCliTool.init();
 
