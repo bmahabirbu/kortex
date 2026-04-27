@@ -17,12 +17,20 @@
  ***********************************************************************/
 
 import { existsSync } from 'node:fs';
+import { arch } from 'node:os';
 import { join } from 'node:path';
 
 import type { CliToolInstallationSource, ExtensionContext } from '@openkaiden/api';
 import * as extensionApi from '@openkaiden/api';
 
+import { downloadKdn, getLatestVersion } from './kdn-download';
+
+const DOWNLOAD_TIMEOUT_MS = 60_000;
+
 export class KdnExtension {
+  private downloadAbortController: AbortController | undefined;
+  private deactivated = false;
+
   constructor(private readonly extensionContext: ExtensionContext) {}
 
   async activate(): Promise<void> {
@@ -39,6 +47,9 @@ export class KdnExtension {
       if (version) {
         binaryPath = localBinaryPath;
         installationSource = 'extension';
+        console.log('binary found in extension storage');
+      } else {
+        console.warn(`binary exists at ${localBinaryPath} but failed to report a version`);
       }
     }
 
@@ -48,6 +59,9 @@ export class KdnExtension {
         binaryPath = 'kdn';
         version = systemResult.version;
         installationSource = 'external';
+        console.log('kdn binary found in system PATH');
+      } else {
+        console.warn('kdn not found in system PATH');
       }
     }
 
@@ -60,16 +74,39 @@ export class KdnExtension {
           if (version) {
             binaryPath = bundledBinaryPath;
             installationSource = 'extension';
+            console.log('binary found in bundled resources');
+          } else {
+            console.warn(`bundled binary at ${bundledBinaryPath} failed to report a version`);
           }
+        } else {
+          console.warn(`bundled binary not found at ${bundledBinaryPath}`);
         }
       }
     }
 
-    if (!binaryPath) {
-      console.error('kdn CLI not found in extension storage, PATH, or bundled resources');
+    if (binaryPath) {
+      this.registerCliTool(binaryPath, version, installationSource);
       return;
     }
 
+    try {
+      await this.downloadAndRegister(localBinaryPath, binDir);
+    } catch (err: unknown) {
+      console.error('failed to download kdn CLI', err);
+      throw new Error('kdn CLI not found in extension storage, PATH, or bundled resources', { cause: err });
+    }
+  }
+
+  async deactivate(): Promise<void> {
+    this.deactivated = true;
+    this.downloadAbortController?.abort();
+  }
+
+  private registerCliTool(
+    binaryPath: string,
+    version: string | undefined,
+    installationSource: CliToolInstallationSource,
+  ): void {
     const cliTool = extensionApi.cli.createCliTool({
       name: 'kdn',
       displayName: 'kdn',
@@ -82,7 +119,33 @@ export class KdnExtension {
     this.extensionContext.subscriptions.push(cliTool);
   }
 
-  async deactivate(): Promise<void> {}
+  private async downloadAndRegister(localBinaryPath: string, binDir: string): Promise<void> {
+    await extensionApi.window.withProgress(
+      { location: extensionApi.ProgressLocation.TASK_WIDGET, title: 'Downloading kdn CLI' },
+      async (_progress, token) => {
+        const abortController = new AbortController();
+        this.downloadAbortController = abortController;
+        const timeoutId = setTimeout(() => abortController.abort(), DOWNLOAD_TIMEOUT_MS);
+        token.onCancellationRequested(() => abortController.abort());
+
+        try {
+          console.log('downloading binary from GitHub');
+          const latestVersion = await getLatestVersion(abortController.signal);
+          await downloadKdn(latestVersion, process.platform, arch(), binDir, abortController.signal);
+          if (this.deactivated) return;
+          const version = await this.getVersion(localBinaryPath);
+          if (version) {
+            this.registerCliTool(localBinaryPath, version, 'extension');
+          } else {
+            throw new Error(`kdn binary downloaded to ${localBinaryPath} but failed to report a version`);
+          }
+        } finally {
+          clearTimeout(timeoutId);
+          this.downloadAbortController = undefined;
+        }
+      },
+    );
+  }
 
   private parseVersion(output: string): string | undefined {
     const parts = output.trim().split(/\s+/);
@@ -104,7 +167,7 @@ export class KdnExtension {
       const version = this.parseVersion(result.stdout || result.stderr);
       if (version) return { version };
     } catch {
-      // not on PATH
+      // handled by caller
     }
     return undefined;
   }
