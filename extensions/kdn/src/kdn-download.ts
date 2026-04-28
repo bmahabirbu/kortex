@@ -47,8 +47,52 @@ export async function getLatestVersion(signal?: AbortSignal): Promise<string> {
   return data.tag_name.replace(/^v/, '');
 }
 
+interface KdnRelease {
+  label: string;
+  tag: string;
+}
+
 const PLATFORM_MAP: Record<string, string> = { darwin: 'darwin', linux: 'linux', win32: 'windows' };
 const ARCH_MAP: Record<string, string> = { x64: 'amd64', arm64: 'arm64' };
+
+export async function getAvailableVersions(platform: string, arch: string): Promise<KdnRelease[]> {
+  const kdnPlatform = PLATFORM_MAP[platform];
+  const kdnArch = ARCH_MAP[arch];
+  if (!kdnPlatform || !kdnArch) return [];
+
+  const ext = platform === 'win32' ? 'zip' : 'tar.gz';
+
+  const headers: Record<string, string> = { Accept: 'application/vnd.github.v3+json' };
+  const token = process.env['GITHUB_TOKEN'];
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  const res = await fetch(`https://api.github.com/repos/${KDN_REPO}/releases`, {
+    headers,
+    redirect: 'follow',
+  });
+  if (!res.ok) {
+    throw new Error(`failed to fetch kdn releases: ${res.status} ${res.statusText}`);
+  }
+  const data = (await res.json()) as Array<{
+    tag_name: string;
+    name: string | null;
+    prerelease: boolean;
+    assets: Array<{ name: string }>;
+  }>;
+  return data
+    .filter(r => !r.prerelease)
+    .filter(r => {
+      const version = r.tag_name.replace(/^v/, '');
+      const expectedAsset = `kdn_${version}_${kdnPlatform}_${kdnArch}.${ext}`;
+      return r.assets.some(a => a.name === expectedAsset);
+    })
+    .slice(0, 5)
+    .map(r => ({
+      label: r.name ?? r.tag_name,
+      tag: r.tag_name.replace(/^v/, ''),
+    }));
+}
 
 export async function download(url: string, dest: string, signal?: AbortSignal): Promise<void> {
   const res = await fetch(url, { redirect: 'follow', signal });
