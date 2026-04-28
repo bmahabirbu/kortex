@@ -52,7 +52,16 @@ interface KdnRelease {
   tag: string;
 }
 
-export async function getAvailableVersions(): Promise<KdnRelease[]> {
+const PLATFORM_MAP: Record<string, string> = { darwin: 'darwin', linux: 'linux', win32: 'windows' };
+const ARCH_MAP: Record<string, string> = { x64: 'amd64', arm64: 'arm64' };
+
+export async function getAvailableVersions(platform: string, arch: string): Promise<KdnRelease[]> {
+  const kdnPlatform = PLATFORM_MAP[platform];
+  const kdnArch = ARCH_MAP[arch];
+  if (!kdnPlatform || !kdnArch) return [];
+
+  const ext = platform === 'win32' ? 'zip' : 'tar.gz';
+
   const headers: Record<string, string> = { Accept: 'application/vnd.github.v3+json' };
   const token = process.env['GITHUB_TOKEN'];
   if (token) {
@@ -73,16 +82,17 @@ export async function getAvailableVersions(): Promise<KdnRelease[]> {
   }>;
   return data
     .filter(r => !r.prerelease)
-    .filter(r => r.assets.some(a => a.name.startsWith('kdn_')))
+    .filter(r => {
+      const version = r.tag_name.replace(/^v/, '');
+      const expectedAsset = `kdn_${version}_${kdnPlatform}_${kdnArch}.${ext}`;
+      return r.assets.some(a => a.name === expectedAsset);
+    })
     .slice(0, 5)
     .map(r => ({
       label: r.name ?? r.tag_name,
       tag: r.tag_name.replace(/^v/, ''),
     }));
 }
-
-const PLATFORM_MAP: Record<string, string> = { darwin: 'darwin', linux: 'linux', win32: 'windows' };
-const ARCH_MAP: Record<string, string> = { x64: 'amd64', arm64: 'arm64' };
 
 export async function download(url: string, dest: string, signal?: AbortSignal): Promise<void> {
   const res = await fetch(url, { redirect: 'follow', signal });

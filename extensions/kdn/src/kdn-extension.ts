@@ -116,7 +116,7 @@ export class KdnExtension {
 
       const updater = cliTool.registerUpdate({
         selectVersion: async (): Promise<string> => {
-          const releases = await getAvailableVersions();
+          const releases = await getAvailableVersions(process.platform, arch());
           const filtered = releases.filter(r => r.tag !== currentVersion);
           const selected = await extensionApi.window.showQuickPick(filtered, {
             placeHolder: 'Select kdn version to install',

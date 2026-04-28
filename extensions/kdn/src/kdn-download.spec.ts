@@ -203,7 +203,7 @@ describe('downloadKdn signal', () => {
 });
 
 describe('getAvailableVersions', () => {
-  test('returns non-prerelease versions with kdn assets and strips v prefix', async () => {
+  test('filters by platform/arch asset and excludes prereleases and legacy names', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn().mockResolvedValue({
@@ -237,12 +237,33 @@ describe('getAvailableVersions', () => {
       }),
     );
 
-    const versions = await getAvailableVersions();
+    const versions = await getAvailableVersions('linux', 'x64');
 
     expect(versions).toEqual([
       { label: 'kdn v0.6.0', tag: '0.6.0' },
       { label: 'kdn v0.5.0', tag: '0.5.0' },
     ]);
+  });
+
+  test('excludes releases missing the target platform archive', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: () => [
+          {
+            tag_name: 'v0.6.0',
+            name: 'kdn v0.6.0',
+            prerelease: false,
+            assets: [{ name: 'kdn_0.6.0_linux_amd64.tar.gz' }],
+          },
+        ],
+      }),
+    );
+
+    const versions = await getAvailableVersions('win32', 'x64');
+
+    expect(versions).toEqual([]);
   });
 
   test('limits to 5 versions', async () => {
@@ -254,7 +275,7 @@ describe('getAvailableVersions', () => {
     }));
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: () => releases }));
 
-    const versions = await getAvailableVersions();
+    const versions = await getAvailableVersions('linux', 'x64');
 
     expect(versions).toHaveLength(5);
   });
