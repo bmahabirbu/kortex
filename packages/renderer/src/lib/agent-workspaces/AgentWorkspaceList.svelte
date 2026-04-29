@@ -1,19 +1,15 @@
 <script lang="ts">
 import { faPlus } from '@fortawesome/free-solid-svg-icons';
-import { Button, FilteredEmptyScreen, NavPage, Table, TableColumn, TableRow } from '@podman-desktop/ui-svelte';
+import { Button, FilteredEmptyScreen, NavPage, SearchInput } from '@podman-desktop/ui-svelte';
 
 import NoLogIcon from '/@/lib/ui/NoLogIcon.svelte';
 import { handleNavigation } from '/@/navigation';
 import { agentWorkspaces, type AgentWorkspaceSummaryUI } from '/@/stores/agent-workspaces.svelte';
 import { NavigationPage } from '/@api/navigation-page';
 
-import AgentWorkspaceActions from './AgentWorkspaceActions.svelte';
 import AgentWorkspaceEmptyScreen from './AgentWorkspaceEmptyScreen.svelte';
-import AgentWorkspaceIcon from './columns/AgentWorkspaceIcon.svelte';
-import AgentWorkspaceName from './columns/AgentWorkspaceName.svelte';
-import AgentWorkspaceStatus from './columns/AgentWorkspaceStatus.svelte';
-
-type AgentWorkspaceSelectable = AgentWorkspaceSummaryUI & { selected: boolean };
+import AgentWorkspaceRow from './AgentWorkspaceRow.svelte';
+import AgentWorkspaceStatCards from './AgentWorkspaceStatCards.svelte';
 
 let searchTerm = $state('');
 
@@ -21,74 +17,68 @@ function navigateToCreate(): void {
   handleNavigation({ page: NavigationPage.AGENT_WORKSPACE_CREATE });
 }
 
-const row = new TableRow<AgentWorkspaceSelectable>({});
-
-const iconColumn = new TableColumn<AgentWorkspaceSelectable>('', {
-  width: '40px',
-  renderer: AgentWorkspaceIcon,
-});
-
-const nameColumn = new TableColumn<AgentWorkspaceSelectable>('Workspace', {
-  width: '1fr',
-  renderer: AgentWorkspaceName,
-  comparator: (a, b): number => a.name.localeCompare(b.name),
-});
-
-const statusColumn = new TableColumn<AgentWorkspaceSelectable>('Status', {
-  width: '100px',
-  align: 'center',
-  renderer: AgentWorkspaceStatus,
-  comparator: (a, b): number => a.state.localeCompare(b.state),
-});
-
-const actionsColumn = new TableColumn<AgentWorkspaceSelectable>('Actions', {
-  width: '90px',
-  align: 'right',
-  renderer: AgentWorkspaceActions,
-  overflow: true,
-});
-
-const columns = [iconColumn, nameColumn, statusColumn, actionsColumn];
-
-const filteredWorkspaces: AgentWorkspaceSelectable[] = $derived.by(() => {
+const filteredWorkspaces: AgentWorkspaceSummaryUI[] = $derived.by(() => {
   const term = searchTerm.toLowerCase();
-  return $agentWorkspaces
-    .filter(
-      ws =>
-        !term ||
-        ws.name.toLowerCase().includes(term) ||
-        ws.project.toLowerCase().includes(term) ||
-        (ws.model?.toLowerCase().includes(term) ?? false),
-    )
-    .map(ws => ({ ...ws, selected: false }));
+  return $agentWorkspaces.filter(
+    ws =>
+      !term ||
+      ws.name.toLowerCase().includes(term) ||
+      ws.project.toLowerCase().includes(term) ||
+      (ws.model?.toLowerCase().includes(term) ?? false),
+  );
 });
+
+const ACTIVE_STATES: Set<string> = new Set(['running', 'starting', 'stopping']);
+const activeWorkspaces = $derived(filteredWorkspaces.filter(ws => ACTIVE_STATES.has(ws.state)));
+const stoppedWorkspaces = $derived(filteredWorkspaces.filter(ws => !ACTIVE_STATES.has(ws.state)));
 </script>
 
-<NavPage bind:searchTerm={searchTerm} title="Agentic Workspaces">
+<NavPage bind:searchTerm={searchTerm} searchEnabled={false} title="Agentic Workspaces">
   {#snippet additionalActions()}
-  <Button icon={faPlus} onclick={navigateToCreate}>Create Workspace</Button>
+    <Button icon={faPlus} onclick={navigateToCreate}>Create Workspace</Button>
   {/snippet}
 
   {#snippet content()}
-    <div class="flex flex-col min-w-full h-full">
-      <span class="text-sm text-(--pd-content-text) opacity-70 px-5 pt-4">{filteredWorkspaces.length} total {filteredWorkspaces.length === 1 ? 'session' : 'sessions'}</span>
-      <div class="flex min-w-full min-h-0 flex-1">
-        {#if filteredWorkspaces.length === 0}
-          {#if searchTerm}
-            <FilteredEmptyScreen icon={NoLogIcon} kind="sessions" bind:searchTerm={searchTerm} />
-          {:else}
-            <AgentWorkspaceEmptyScreen />
-          {/if}
-        {:else}
-          <Table
-            kind="agent-workspaces"
-            data={filteredWorkspaces}
-            columns={columns}
-            row={row}
-            defaultSortColumn="Workspace"
-          />
-        {/if}
+    <div class="flex flex-col min-w-full h-full px-5 pt-4 pb-6 overflow-auto">
+      <AgentWorkspaceStatCards workspaces={$agentWorkspaces} />
+
+      <div
+        class="mb-5 w-full"
+        style="--pd-input-field-bg: var(--pd-content-card-bg); --pd-input-field-hover-bg: var(--pd-content-card-bg); --pd-input-field-focused-bg: var(--pd-content-card-bg);">
+        <SearchInput bind:searchTerm={searchTerm} title="Agentic Workspaces" />
       </div>
+
+      {#if filteredWorkspaces.length === 0}
+        {#if searchTerm}
+          <FilteredEmptyScreen icon={NoLogIcon} kind="sessions" bind:searchTerm={searchTerm} />
+        {:else}
+          <AgentWorkspaceEmptyScreen />
+        {/if}
+      {:else}
+        <div class="bg-[var(--pd-content-card-bg)] border border-[var(--pd-content-card-border)] rounded-[14px] overflow-hidden">
+          <div class="grid grid-cols-[44px_minmax(0,1fr)_200px_56px_80px] gap-x-5 px-[22px] py-3 items-end text-xs font-semibold text-[var(--pd-content-text)] opacity-50 uppercase tracking-wide bg-[var(--pd-invert-content-card-bg)] border-b border-b-[var(--pd-content-card-border)]">
+            <span aria-hidden="true"></span>
+            <span>Workspace</span>
+            <span>Context</span>
+            <span class="text-right">Time</span>
+            <span aria-hidden="true"></span>
+          </div>
+
+          {#if activeWorkspaces.length > 0}
+            <div class="px-[22px] pt-3.5 pb-2 text-xs font-bold text-[var(--pd-content-text)] opacity-50 uppercase tracking-widest">Active</div>
+            {#each activeWorkspaces as workspace (workspace.id)}
+              <AgentWorkspaceRow object={workspace} />
+            {/each}
+          {/if}
+
+          {#if stoppedWorkspaces.length > 0}
+            <div class="px-[22px] pt-3.5 pb-2 text-xs font-bold text-[var(--pd-content-text)] opacity-50 uppercase tracking-widest">Stopped</div>
+            {#each stoppedWorkspaces as workspace (workspace.id)}
+              <AgentWorkspaceRow object={workspace} />
+            {/each}
+          {/if}
+        </div>
+      {/if}
     </div>
   {/snippet}
 </NavPage>
