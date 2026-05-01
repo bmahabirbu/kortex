@@ -19,11 +19,19 @@ import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 
 import type { IAsyncDisposable } from '/@api/async-disposable.js';
 
-import type { CommandSpec, MCPSpawner, ResolvedServerPackage } from './mcp-spawner.js';
+import type { CommandSpec, MCPSpawner, ResolvedServerPackage, WorkspaceRequirements } from './mcp-spawner.js';
 import { NPMSpawner } from './npm-spawner.js';
 import { PyPiSpawner } from './pypi-spawner.js';
 
+const commandToRequirements = new Map<string, () => WorkspaceRequirements>([
+  [PyPiSpawner.command, (): WorkspaceRequirements => PyPiSpawner.getWorkspaceRequirements()],
+  [NPMSpawner.command, (): WorkspaceRequirements => NPMSpawner.getWorkspaceRequirements()],
+]);
+
 export class MCPPackage implements IAsyncDisposable {
+  static getWorkspaceRequirements(command: string): WorkspaceRequirements | undefined {
+    return commandToRequirements.get(command)?.();
+  }
   readonly #spawner: MCPSpawner;
 
   constructor(pack: ResolvedServerPackage) {

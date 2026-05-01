@@ -274,6 +274,157 @@ describe('create', () => {
     expect(parsed.mcp).toEqual({ servers: [] });
     expect(parsed.skills).toEqual(['/home/user/.kaiden/skills/kubernetes']);
   });
+
+  test('writes workspace.json with remote MCP servers', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    vi.mocked(readFile).mockRejectedValue(new Error('ENOENT'));
+    vi.mocked(exec.exec).mockResolvedValue(mockExecResult(JSON.stringify({ id: 'ws-new' })));
+
+    await kdnCli.createWorkspace({
+      ...defaultOptions,
+      mcp: {
+        servers: [{ name: 'github', url: 'https://mcp.github.com/sse' }],
+      },
+    });
+
+    const writtenContent = vi.mocked(writeFile).mock.calls[0]![1] as string;
+    const parsed = JSON.parse(writtenContent);
+    expect(parsed.mcp.servers).toEqual([{ name: 'github', url: 'https://mcp.github.com/sse' }]);
+  });
+
+  test('writes workspace.json with command-based MCP servers and adds Python feature for uvx', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    vi.mocked(readFile).mockRejectedValue(new Error('ENOENT'));
+    vi.mocked(exec.exec).mockResolvedValue(mockExecResult(JSON.stringify({ id: 'ws-new' })));
+
+    await kdnCli.createWorkspace({
+      ...defaultOptions,
+      mcp: {
+        commands: [{ name: 'pypi-server', command: 'uvx', args: ['mcp-server==1.0.0'], env: { API_KEY: 'test' } }],
+      },
+    });
+
+    const calls = vi.mocked(writeFile).mock.calls;
+    const configCall = calls.find(c => String(c[0]).endsWith('workspace.json'));
+    const parsed = JSON.parse(configCall![1] as string);
+    expect(parsed.mcp.commands).toEqual([
+      {
+        name: 'pypi-server',
+        command: 'uvx',
+        args: ['mcp-server==1.0.0'],
+        env: { API_KEY: 'test', UV_SYSTEM_CERTS: '1' },
+      },
+    ]);
+    expect(parsed.features).toEqual({ './uv-feature': {} });
+    expect(parsed.network).toBeDefined();
+  });
+
+  test('adds Node.js feature and npm registry host for npx command servers', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    vi.mocked(readFile).mockRejectedValue(new Error('ENOENT'));
+    vi.mocked(exec.exec).mockResolvedValue(mockExecResult(JSON.stringify({ id: 'ws-new' })));
+
+    await kdnCli.createWorkspace({
+      ...defaultOptions,
+      mcp: {
+        commands: [{ name: 'playwright', command: 'npx', args: ['-y', '@playwright/mcp'] }],
+      },
+    });
+
+    const writtenContent = vi.mocked(writeFile).mock.calls[0]![1] as string;
+    const parsed = JSON.parse(writtenContent);
+    expect(parsed.features).toEqual({ 'ghcr.io/devcontainers/features/node:1': { version: '20' } });
+    expect(parsed.network).toBeDefined();
+  });
+
+  test('writes workspace.json with both remote and command-based MCP servers', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    vi.mocked(readFile).mockRejectedValue(new Error('ENOENT'));
+    vi.mocked(exec.exec).mockResolvedValue(mockExecResult(JSON.stringify({ id: 'ws-new' })));
+
+    await kdnCli.createWorkspace({
+      ...defaultOptions,
+      mcp: {
+        servers: [{ name: 'github', url: 'https://mcp.github.com/sse' }],
+        commands: [{ name: 'playwright', command: 'npx', args: ['-y', '@playwright/mcp'] }],
+      },
+    });
+
+    const writtenContent = vi.mocked(writeFile).mock.calls[0]![1] as string;
+    const parsed = JSON.parse(writtenContent);
+    expect(parsed.mcp.servers).toEqual([{ name: 'github', url: 'https://mcp.github.com/sse' }]);
+    expect(parsed.mcp.commands).toEqual([{ name: 'playwright', command: 'npx', args: ['-y', '@playwright/mcp'] }]);
+    expect(parsed.features).toEqual({ 'ghcr.io/devcontainers/features/node:1': { version: '20' } });
+  });
+
+  test('preserves existing feature config when adding for uvx', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    vi.mocked(readFile).mockResolvedValue(
+      JSON.stringify({
+        features: { './uv-feature': { version: '3.12' } },
+      }),
+    );
+    vi.mocked(exec.exec).mockResolvedValue(mockExecResult(JSON.stringify({ id: 'ws-new' })));
+
+    await kdnCli.createWorkspace({
+      ...defaultOptions,
+      mcp: {
+        commands: [{ name: 'pypi-server', command: 'uvx', args: ['mcp-server==1.0.0'] }],
+      },
+    });
+
+    const calls = vi.mocked(writeFile).mock.calls;
+    const configCall = calls.find(c => String(c[0]).endsWith('workspace.json'));
+    const parsed = JSON.parse(configCall![1] as string);
+    expect(parsed.features).toEqual({ './uv-feature': { version: '3.12' } });
+    expect(parsed.network).toBeDefined();
+  });
+
+  test('adds both Python and Node features when uvx and npx commands are present', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    vi.mocked(readFile).mockRejectedValue(new Error('ENOENT'));
+    vi.mocked(exec.exec).mockResolvedValue(mockExecResult(JSON.stringify({ id: 'ws-new' })));
+
+    await kdnCli.createWorkspace({
+      ...defaultOptions,
+      mcp: {
+        commands: [
+          { name: 'pypi-server', command: 'uvx', args: ['mcp-server==1.0.0'] },
+          { name: 'playwright', command: 'npx', args: ['-y', '@playwright/mcp'] },
+        ],
+      },
+    });
+
+    const calls = vi.mocked(writeFile).mock.calls;
+    const configCall = calls.find(c => String(c[0]).endsWith('workspace.json'));
+    const parsed = JSON.parse(configCall![1] as string);
+    expect(parsed.features).toEqual({
+      './uv-feature': {},
+      'ghcr.io/devcontainers/features/node:1': { version: '20' },
+    });
+    expect(parsed.network).toBeDefined();
+  });
+
+  test('preserves existing Node feature config when adding for npx', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    vi.mocked(readFile).mockResolvedValue(
+      JSON.stringify({
+        features: { 'ghcr.io/devcontainers/features/node:1': { version: '22' } },
+      }),
+    );
+    vi.mocked(exec.exec).mockResolvedValue(mockExecResult(JSON.stringify({ id: 'ws-new' })));
+
+    await kdnCli.createWorkspace({
+      ...defaultOptions,
+      mcp: {
+        commands: [{ name: 'playwright', command: 'npx', args: ['-y', '@playwright/mcp'] }],
+      },
+    });
+
+    const writtenContent = vi.mocked(writeFile).mock.calls[0]![1] as string;
+    const parsed = JSON.parse(writtenContent);
+    expect(parsed.features).toEqual({ 'ghcr.io/devcontainers/features/node:1': { version: '22' } });
+  });
 });
 
 describe('list', () => {

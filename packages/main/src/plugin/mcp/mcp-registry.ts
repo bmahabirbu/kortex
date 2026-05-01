@@ -271,6 +271,7 @@ export class MCPRegistry {
             environmentVariables: config.environmentVariables,
           });
 
+          const cmdSpec = spawner.buildCommandSpec();
           const transport = await spawner.spawn();
           await this.mcpManager.registerMCPClient(
             INTERNAL_PROVIDER_ID,
@@ -282,6 +283,7 @@ export class MCPRegistry {
             undefined,
             server.description,
             server.isValidSchema,
+            cmdSpec,
           );
         }
       }
@@ -447,6 +449,7 @@ export class MCPRegistry {
 
     let transport: Transport;
     let config: StorageConfigFormat;
+    let cmdSpec: { command: string; args?: string[]; env?: Record<string, string> } | undefined;
 
     let url: string | undefined;
 
@@ -510,6 +513,7 @@ export class MCPRegistry {
           runtimeArguments: config.runtimeArguments,
           environmentVariables: config.environmentVariables,
         });
+        cmdSpec = spawner.buildCommandSpec();
         transport = await spawner.spawn();
         break;
       }
@@ -530,6 +534,7 @@ export class MCPRegistry {
       url,
       description,
       isValidSchema,
+      cmdSpec,
     );
 
     // persist configuration

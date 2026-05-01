@@ -35,6 +35,13 @@ export interface CommandSpec {
   env?: Record<string, string>;
 }
 
+export interface WorkspaceRequirements {
+  hosts: string[];
+  features: Record<string, Record<string, unknown>>;
+  env?: Record<string, string>;
+  ensureFeatures?: (configDir: string) => Promise<void>;
+}
+
 export abstract class MCPSpawner<T extends string = string> implements IAsyncDisposable {
   constructor(protected readonly pack: ResolvedServerPackage & { registryType: T }) {}
 

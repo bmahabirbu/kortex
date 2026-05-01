@@ -47,6 +47,12 @@ export type CliInfo = cliComponents['schemas']['Info'];
 /**
  * Options for creating (initializing) a new workspace via `kdn init`.
  */
+export type AgentWorkspaceMcpRemoteServer = configComponents['schemas']['McpServer'];
+
+export type AgentWorkspaceMcpCommandServer = configComponents['schemas']['McpCommand'];
+
+export type AgentWorkspaceMcpConfig = configComponents['schemas']['McpConfiguration'];
+
 export interface AgentWorkspaceCreateOptions {
   sourcePath: string;
   agent: string;
@@ -54,4 +60,5 @@ export interface AgentWorkspaceCreateOptions {
   name?: string;
   project?: string;
   skills?: string[];
+  mcp?: AgentWorkspaceMcpConfig;
 }

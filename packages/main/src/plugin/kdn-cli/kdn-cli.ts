@@ -24,6 +24,7 @@ import type { components as workspaceComponents } from '@openkaiden/workspace-co
 import { inject, injectable } from 'inversify';
 
 import { CliToolRegistry } from '/@/plugin/cli-tool-registry.js';
+import { MCPPackage } from '/@/plugin/mcp/package/mcp-package.js';
 import { Exec } from '/@/plugin/util/exec.js';
 import type {
   AgentWorkspaceCreateOptions,
@@ -126,7 +127,11 @@ export class KdnCli {
   }
 
   async writeWorkspaceConfig(options: AgentWorkspaceCreateOptions): Promise<void> {
-    if (!options.skills?.length) {
+    const mcpServers = options.mcp?.servers;
+    const mcpCommands = options.mcp?.commands;
+    const hasSkills = !!options.skills?.length;
+    const hasMcp = !!mcpServers?.length || !!mcpCommands?.length;
+    if (!hasSkills && !hasMcp) {
       return;
     }
 
@@ -141,10 +146,76 @@ export class KdnCli {
       // file doesn't exist yet — start fresh
     }
 
-    existing.skills = options.skills;
+    if (hasSkills) {
+      existing.skills = options.skills;
+    }
+
+    if (hasMcp) {
+      existing.mcp = {
+        ...(mcpServers?.length
+          ? {
+              servers: mcpServers.map(s => ({
+                name: s.name,
+                url: s.url,
+                ...(s.headers && Object.keys(s.headers).length > 0 ? { headers: s.headers } : {}),
+              })),
+            }
+          : {}),
+        ...(mcpCommands?.length
+          ? {
+              commands: mcpCommands.map(c => {
+                const reqs = MCPPackage.getWorkspaceRequirements(c.command);
+                const env = { ...reqs?.env, ...c.env };
+                return {
+                  name: c.name,
+                  command: c.command,
+                  ...(c.args?.length ? { args: c.args } : {}),
+                  ...(Object.keys(env).length > 0 ? { env } : {}),
+                };
+              }),
+            }
+          : {}),
+      };
+
+      const requiredHosts: string[] = [];
+      const seenCommands = new Set<string>();
+
+      for (const c of mcpCommands ?? []) {
+        if (seenCommands.has(c.command)) continue;
+        seenCommands.add(c.command);
+
+        const reqs = MCPPackage.getWorkspaceRequirements(c.command);
+        if (!reqs) continue;
+
+        for (const [key, value] of Object.entries(reqs.features)) {
+          existing.features = {
+            ...existing.features,
+            [key]: existing.features?.[key] ?? value,
+          };
+        }
+        if (reqs.ensureFeatures) {
+          await reqs.ensureFeatures(configDir);
+        }
+        requiredHosts.push(...reqs.hosts);
+      }
+
+      if (requiredHosts.length > 0) {
+        const existingHosts = existing.network?.hosts ?? [];
+        const missingHosts = requiredHosts.filter(h => !existingHosts.includes(h));
+        if (missingHosts.length > 0) {
+          existing.network = {
+            ...existing.network,
+            mode: existing.network?.mode ?? 'deny',
+            hosts: [...existingHosts, ...missingHosts],
+          };
+        }
+      }
+    }
 
     await mkdir(configDir, { recursive: true });
-    await writeFile(configPath, JSON.stringify(existing, undefined, 2) + '\n', 'utf-8');
+    const output = JSON.stringify(existing, undefined, 2) + '\n';
+    console.log('[writeWorkspaceConfig] workspace.json:', output);
+    await writeFile(configPath, output, 'utf-8');
   }
 
   async listWorkspaces(): Promise<AgentWorkspaceSummary[]> {

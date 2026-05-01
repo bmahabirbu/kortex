@@ -21,6 +21,27 @@ import { describe, expect, test } from 'vitest';
 import { PyPiSpawner } from './pypi-spawner.js';
 
 describe('PyPiSpawner', () => {
+  test('command is uvx', () => {
+    expect(PyPiSpawner.command).toBe('uvx');
+  });
+
+  describe('getWorkspaceRequirements', () => {
+    test('returns pypi hosts', () => {
+      const reqs = PyPiSpawner.getWorkspaceRequirements();
+      expect(reqs.hosts).toEqual(['pypi.org', 'files.pythonhosted.org']);
+    });
+
+    test('returns uv-feature', () => {
+      const reqs = PyPiSpawner.getWorkspaceRequirements();
+      expect(reqs.features).toEqual({ './uv-feature': {} });
+    });
+
+    test('provides ensureFeatures callback', () => {
+      const reqs = PyPiSpawner.getWorkspaceRequirements();
+      expect(reqs.ensureFeatures).toBeDefined();
+    });
+  });
+
   describe('buildCommandSpec', () => {
     test('uses uvx command with identifier==version', () => {
       const spawner = new PyPiSpawner({
