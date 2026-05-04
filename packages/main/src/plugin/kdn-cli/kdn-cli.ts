@@ -43,6 +43,11 @@ type WorkspaceConfiguration = workspaceComponents['schemas']['WorkspaceConfigura
  * Injected into {@link AgentWorkspaceManager} so higher-level
  * orchestration (tasks, events, IPC) stays in the manager.
  */
+function rewriteLocalhostUrls(value: string, runtime: string): string {
+  const gateway = runtime === 'docker' ? 'host.docker.internal' : 'host.containers.internal';
+  return value.replace(/\b(https?:\/\/)(localhost|127\.0\.0\.1)(:\d+)?\b/g, `$1${gateway}$3`);
+}
+
 @injectable()
 export class KdnCli {
   constructor(
@@ -150,13 +155,15 @@ export class KdnCli {
       existing.skills = options.skills;
     }
 
+    const runtime = options.runtime ?? 'podman';
+
     if (hasMcp) {
       existing.mcp = {
         ...(mcpServers?.length
           ? {
               servers: mcpServers.map(s => ({
                 name: s.name,
-                url: s.url,
+                url: rewriteLocalhostUrls(s.url, runtime),
                 ...(s.headers && Object.keys(s.headers).length > 0 ? { headers: s.headers } : {}),
               })),
             }
@@ -169,7 +176,7 @@ export class KdnCli {
                 return {
                   name: c.name,
                   command: c.command,
-                  ...(c.args?.length ? { args: c.args } : {}),
+                  ...(c.args?.length ? { args: c.args.map(a => rewriteLocalhostUrls(a, runtime)) } : {}),
                   ...(Object.keys(env).length > 0 ? { env } : {}),
                 };
               }),
@@ -205,7 +212,7 @@ export class KdnCli {
         if (missingHosts.length > 0) {
           existing.network = {
             ...existing.network,
-            mode: existing.network?.mode ?? 'deny',
+            mode: existing.network?.mode ?? 'allow',
             hosts: [...existingHosts, ...missingHosts],
           };
         }
